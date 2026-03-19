@@ -2,8 +2,18 @@
 name = "biggusratus"
 version = "0.1.0"
 
+packages = [
+    { include = "server" },
+    { include = "client" },
+    { include = "common" },
+]
+
 [tool.poetry.dependencies]
 python = "^3.11"
+
+[tool.poetry.scripts]
+server = "server.server:main"
+client = "client.client:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
