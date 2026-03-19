@@ -26,6 +26,18 @@ class Server:
         self.socket.listen()
         self.running = True
         logger.info(f"Server started on {self.host}:{self.port}")
+        self._accept_connections()
+
+    def _accept_connections(self) -> None:
+        while self.running:
+            try:
+                client_socket, address = self.socket.accept()
+                logger.info(f"New connection from {address[0]}:{address[1]}")
+                with self.lock:
+                    agent_id = f"{address[0]}:{address[1]}"
+                    self.agents[agent_id] = client_socket
+            except OSError:
+                break
 
     def stop(self) -> None:
         self.running = False
