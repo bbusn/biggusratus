@@ -4,11 +4,11 @@
 
 ### Core
 
-- [ ] TCP socket connection established
+- [x] TCP socket connection established
 - [ ] Encryption implemented (Fernet)
-- [ ] Automatic reconnection logic
-- [ ] Message serialization (JSON)
-- [ ] Connection error handling
+- [x] Automatic reconnection logic
+- [x] Message serialization (JSON)
+- [x] Connection error handling
 
 ### Commands
 
@@ -119,17 +119,17 @@
 
 ### Core
 
-- [ ] TCP listener implemented
-- [ ] Configurable port
-- [ ] Multi-agent support (threading/asyncio)
-- [ ] Graceful shutdown
+- [x] TCP listener implemented
+- [x] Configurable port
+- [x] Multi-agent support (threading/asyncio)
+- [x] Graceful shutdown
 - [ ] Command-line interface
 - [ ] Agent list display
 - [ ] Agent selection
 - [ ] Command prompt
 - [ ] Output formatting
-- [ ] Accept new connections
-- [ ] Handle disconnections
+- [x] Accept new connections
+- [x] Handle disconnections
 - [ ] Reconnection support
 - [ ] Connection timeout handling
 
