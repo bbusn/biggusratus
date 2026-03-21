@@ -1,6 +1,8 @@
 import json
 import logging
+import queue
 import socket
+import threading
 import time
 from typing import Any, Dict, Optional
 
@@ -10,8 +12,15 @@ from common.constants import (
     DEFAULT_PORT,
     HANDSHAKE_ACTION,
     RETRY_DELAY,
+    TEST_ACTION,
 )
-from common.protocol import build_handshake_command, decode_message, encode_message
+from common.protocol import (
+    build_command,
+    build_handshake_command,
+    build_success_response,
+    decode_message,
+    encode_message,
+)
 from common.tcp import ProtocolError, recv_frame, send_frame
 
 logger = logging.getLogger(__name__)
@@ -25,6 +34,9 @@ class Client:
         self.port = port
         self.socket: Optional[socket.socket] = None
         self.connected = False
+        self._send_lock = threading.Lock()
+        self._response_waiters: Dict[str, "queue.Queue[Dict[str, Any]]"] = {}
+        self._response_lock = threading.Lock()
 
     def connect(self) -> None:
         if self.socket is not None:
@@ -47,8 +59,9 @@ class Client:
         if self.socket is None:
             raise RuntimeError("Cannot handshake: not connected")
         command = build_handshake_command()
-        send_frame(self.socket, encode_message(command))
-        raw = recv_frame(self.socket)
+        with self._send_lock:
+            send_frame(self.socket, encode_message(command))
+            raw = recv_frame(self.socket)
         response = decode_message(raw)
         self._validate_handshake_response(response, command["id"])
         logger.info("Handshake completed with server")
@@ -66,23 +79,94 @@ class Client:
         if message.get("status") != "success":
             raise ValueError("Handshake rejected by server")
 
+    def _handle_incoming_message(self, message: Dict[str, Any]) -> None:
+        if message.get("type") == "response":
+            rid = str(message.get("id", ""))
+            with self._response_lock:
+                waiter = self._response_waiters.pop(rid, None)
+            if waiter is not None:
+                waiter.put(message)
+                return
+            logger.info(f"Received response: {message}")
+            return
+        if message.get("type") == "command" and message.get("action") == TEST_ACTION:
+            logger.info(f"Received command: {message}")
+            if self.socket is None:
+                return
+            req_id = str(message.get("id", ""))
+            reply = build_success_response(
+                req_id, TEST_ACTION, payload='{"ok":true}', message="test-ok"
+            )
+            with self._send_lock:
+                send_frame(self.socket, encode_message(reply))
+            return
+        logger.warning(f"Unhandled message: {message}")
+
+    def _receive_loop(self) -> None:
+        if self.socket is None:
+            return
+        try:
+            while self.connected:
+                raw = recv_frame(self.socket)
+                message = decode_message(raw)
+                self._handle_incoming_message(message)
+        except (ConnectionError, OSError, ProtocolError, json.JSONDecodeError) as exc:
+            logger.warning(f"Receive loop ended: {exc}")
+        finally:
+            self.connected = False
+
+    def _send_test_command(self) -> None:
+        if self.socket is None or not self.connected:
+            logger.error("Not connected")
+            return
+        cmd = build_command(TEST_ACTION, {})
+        request_id = str(cmd["id"])
+        waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+        with self._response_lock:
+            self._response_waiters[request_id] = waiter
+        try:
+            with self._send_lock:
+                send_frame(self.socket, encode_message(cmd))
+            response = waiter.get(timeout=30.0)
+            logger.info(f"Test round-trip OK: {response}")
+        except queue.Empty:
+            logger.error("Timed out waiting for test response from server")
+        finally:
+            with self._response_lock:
+                self._response_waiters.pop(request_id, None)
+
+    def _input_loop(self) -> None:
+        while self.connected:
+            try:
+                line = input("client> ").strip()
+            except EOFError:
+                break
+            if not line:
+                continue
+            if line == "test":
+                self._send_test_command()
+            elif line in ("quit", "exit"):
+                break
+            else:
+                logger.warning(f"Unknown input: {line}")
+
     def run_receive_loop(self) -> None:
         """Block processing framed messages until the connection drops."""
-        if self.socket is None:
-            raise RuntimeError("Cannot receive: not connected")
-        while self.connected:
-            raw = recv_frame(self.socket)
-            message = decode_message(raw)
-            logger.debug(
-                f"Received message type={message.get('type')} "
-                f"action={message.get('action')}"
-            )
+        self._receive_loop()
 
     def run_session(self) -> None:
-        """Connect, handshake, then process inbound traffic."""
+        """Connect, handshake, then process bidirectional traffic."""
         self.connect()
         self.handshake()
-        self.run_receive_loop()
+        recv_thread = threading.Thread(
+            target=self._receive_loop, name="client-recv", daemon=True
+        )
+        recv_thread.start()
+        try:
+            self._input_loop()
+        finally:
+            self.disconnect()
+            recv_thread.join(timeout=2.0)
 
     def disconnect(self) -> None:
         self.connected = False

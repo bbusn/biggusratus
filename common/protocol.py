@@ -1,8 +1,9 @@
 """JSON message helpers aligned with README communication format (pre-encryption)."""
 
 import json
+import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from common.constants import HANDSHAKE_ACTION, PROTOCOL_VERSION
 
@@ -46,4 +47,49 @@ def build_handshake_response(request_id: str) -> Dict[str, Any]:
         },
         "message": "connected",
         "timestamp": None,
+    }
+
+
+def build_command(
+    action: str,
+    params: Dict[str, Any],
+    *,
+    message_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build a command message (either direction on the wire)."""
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "command",
+        "action": action,
+        "id": message_id or str(uuid.uuid4()),
+        "params": params,
+        "message": None,
+        "timestamp": time.time(),
+    }
+
+
+def build_success_response(
+    request_id: str,
+    action: str,
+    *,
+    payload: str = "{}",
+    encoding: str = "utf-8",
+    content_type: str = "application/json",
+    message: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build a successful response for a given command id."""
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "response",
+        "action": action,
+        "id": request_id,
+        "status": "success",
+        "error_code": None,
+        "data": {
+            "encoding": encoding,
+            "content_type": content_type,
+            "payload": payload,
+        },
+        "message": message,
+        "timestamp": time.time(),
     }
