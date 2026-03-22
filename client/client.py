@@ -11,9 +11,11 @@ from common.constants import (
     DEFAULT_CLIENT_HOST,
     DEFAULT_PORT,
     HANDSHAKE_ACTION,
+    HELP_ACTION,
     RETRY_DELAY,
     TEST_ACTION,
 )
+from client.commands.help import HelpCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -37,6 +39,9 @@ class Client:
         self._send_lock = threading.Lock()
         self._response_waiters: Dict[str, "queue.Queue[Dict[str, Any]]"] = {}
         self._response_lock = threading.Lock()
+        self._commands = {
+            HELP_ACTION: HelpCommand(),
+        }
 
     def connect(self) -> None:
         if self.socket is not None:
@@ -89,14 +94,28 @@ class Client:
                 return
             logger.info(f"Received response: {message}")
             return
-        if message.get("type") == "command" and message.get("action") == TEST_ACTION:
+        if message.get("type") == "command":
+            action = message.get("action")
             logger.info(f"Received command: {message}")
             if self.socket is None:
                 return
             req_id = str(message.get("id", ""))
-            reply = build_success_response(
-                req_id, TEST_ACTION, payload='{"ok":true}', message="test-ok"
-            )
+            if action in self._commands:
+                result = self._commands[action].execute(message.get("params", {}))
+                import json as json_mod
+                reply = build_success_response(
+                    req_id,
+                    action,
+                    payload=json_mod.dumps(result),
+                    message=f"{action}-ok",
+                )
+            elif action == TEST_ACTION:
+                reply = build_success_response(
+                    req_id, TEST_ACTION, payload='{"ok":true}', message="test-ok"
+                )
+            else:
+                logger.warning(f"Unknown command action: {action}")
+                return
             with self._send_lock:
                 send_frame(self.socket, encode_message(reply))
             return

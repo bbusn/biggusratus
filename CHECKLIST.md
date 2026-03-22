@@ -12,11 +12,11 @@
 
 ### Commands
 
-- [ ] `help` - Display available commands
+- [x] `help` - Display available commands
 
-  - [ ] Command class implemented
-  - [ ] Returns formatted command list
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Returns formatted command list
+  - [x] Unit tests written
 
 - [ ] `download` - Retrieve file from victim to server
 
@@ -146,7 +146,7 @@
 
 - [ ] `list` - Show connected agents
 - [ ] `select <id>` - Select agent
-- [ ] `exit` - Disconnect agent
+- [x] `exit` - Disconnect agent
 - [ ] `quit` - Shutdown server
-- [ ] `help` - Display commands
+- [x] `help` - Display commands
 - [ ] Error handling for invalid commands

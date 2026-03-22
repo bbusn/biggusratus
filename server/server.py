@@ -179,6 +179,18 @@ class Server:
             with self._response_lock:
                 self._response_waiters.pop(request_id, None)
 
+    @staticmethod
+    def _print_help() -> None:
+        """Display available server commands."""
+        print("\nAvailable commands:")
+        print("  help                Display available commands")
+        print("  list                Show all connected agents")
+        print("  select <agent_id>   Select agent for interaction")
+        print("  test                Send test command to selected agent")
+        print("  exit                Disconnect selected agent")
+        print("  quit                Shutdown server")
+        print()
+
     def run_interactive(self) -> None:
         print("Type 'help' for commands.")
         while self.running:
@@ -192,7 +204,7 @@ class Server:
             cmd = parts[0].lower()
             arg = parts[1] if len(parts) > 1 else ""
             if cmd == "help":
-                print("help  list  select <agent_id>  test  quit")
+                self._print_help()
             elif cmd == "list":
                 with self.lock:
                     ids = list(self.agents.keys())
@@ -218,6 +230,19 @@ class Server:
                     print("Select an agent first: select <agent_id>")
                     continue
                 self.send_test_to_agent(target)
+            elif cmd == "exit":
+                if self.selected_agent_id is None:
+                    print("No agent selected.")
+                    continue
+                with self.lock:
+                    sock = self.agents.pop(self.selected_agent_id, None)
+                if sock is not None:
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
+                print(f"Disconnected agent {self.selected_agent_id}")
+                self.selected_agent_id = None
             elif cmd == "quit":
                 break
             else:

@@ -15,3 +15,4 @@ PROTOCOL_VERSION = "1.0"
 HANDSHAKE_ACTION = "handshake"
 # Temporary wire check; remove when real commands land.
 TEST_ACTION = "test"
+HELP_ACTION = "help"
