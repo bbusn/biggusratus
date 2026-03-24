@@ -26,13 +26,13 @@
   - [x] Progress reporting
   - [x] Unit tests written
 
-- [ ] `upload` - Send file from server to victim
+- [x] `upload` - Send file from server to victim
 
-  - [ ] Command class implemented
-  - [ ] Handles binary files
-  - [ ] Path validation
-  - [ ] Progress reporting
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Handles binary files
+  - [x] Path validation
+  - [x] Progress reporting
+  - [x] Unit tests written
 
 - [ ] `shell` - Open interactive shell
 

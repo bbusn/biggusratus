@@ -23,6 +23,7 @@ HANDSHAKE_ACTION = "handshake"
 TEST_ACTION = "test"
 HELP_ACTION = "help"
 DOWNLOAD_ACTION = "download"
+UPLOAD_ACTION = "upload"
 
 # OS Types
 OS_WINDOWS = "windows"
