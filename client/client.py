@@ -11,6 +11,7 @@ from common.constants import (
     CONNECT_TIMEOUT_SEC,
     DEFAULT_CLIENT_HOST,
     DEFAULT_PORT,
+    DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
     HELP_ACTION,
     MAX_RETRIES,
@@ -21,6 +22,7 @@ from common.constants import (
     TEST_ACTION,
 )
 from client.commands.help import HelpCommand
+from client.commands.download import DownloadCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -49,6 +51,7 @@ class Client:
         self._response_lock = threading.Lock()
         self._commands = {
             HELP_ACTION: HelpCommand(),
+            DOWNLOAD_ACTION: DownloadCommand(),
         }
         self._retry_count = 0
         self._shutdown = False

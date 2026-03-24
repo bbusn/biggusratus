@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 from common.constants import (
     DEFAULT_HOST,
     DEFAULT_PORT,
+    DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
     PROTOCOL_VERSION,
     READ_TIMEOUT_SEC,
@@ -365,16 +366,98 @@ class Server:
             with self._response_lock:
                 self._response_waiters.pop(request_id, None)
 
+    def download_from_agent(
+        self, agent_id: str, remote_path: str, local_path: str
+    ) -> bool:
+        # Download a file from an agent and save it locally.
+        import base64
+
+        with self.lock:
+            session = self.sessions.get(agent_id)
+            sock = session.socket if session else None
+            encryptor = session.encryptor if session else None
+        if sock is None:
+            logger.error(f"No such agent: {agent_id}")
+            return False
+
+        cmd = build_command(DOWNLOAD_ACTION, {"remote_path": remote_path})
+        request_id = str(cmd["id"])
+        waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+        with self._response_lock:
+            self._response_waiters[request_id] = waiter
+        try:
+            # Encrypt and send
+            plaintext = encode_message(cmd)
+            if encryptor is not None:
+                ciphertext = encryptor.encrypt(plaintext)
+            else:
+                ciphertext = plaintext
+            send_frame(sock, ciphertext)
+
+            # Wait for response with extended timeout for large files
+            response = waiter.get(timeout=120.0)
+
+            with self.lock:
+                session = self.sessions.get(agent_id)
+                if session:
+                    session.update_last_seen()
+
+            # Parse response
+            data = response.get("data", {})
+            payload = data.get("payload", "{}")
+            try:
+                result = json.loads(payload)
+            except json.JSONDecodeError:
+                logger.error("Invalid response payload")
+                return False
+
+            if not result.get("success", False):
+                logger.error(f"Download failed: {result.get('error', 'Unknown error')}")
+                return False
+
+            # Decode and save file
+            content_base64 = result.get("content", "")
+            if not content_base64:
+                logger.error("No file content in response")
+                return False
+
+            file_content = base64.b64decode(content_base64)
+            file_size = len(file_content)
+
+            # Create directory if needed
+            import os
+            os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+
+            with open(local_path, "wb") as f:
+                f.write(file_content)
+
+            logger.info(
+                f"Downloaded {remote_path} -> {local_path} ({file_size} bytes) "
+                f"from {agent_id}"
+            )
+            return True
+
+        except queue.Empty:
+            logger.error(f"Timed out waiting for download response from {agent_id}")
+            return False
+        except Exception as e:
+            logger.error(f"Download error: {e}")
+            return False
+        finally:
+            with self._response_lock:
+                self._response_waiters.pop(request_id, None)
+
     @staticmethod
     def _print_help() -> None:
         # Display available server commands.
         print("\nAvailable commands:")
-        print("  help                Display available commands")
-        print("  list                Show all connected agents")
-        print("  select <agent_id>   Select agent for interaction")
-        print("  test                Send test command to selected agent")
-        print("  exit                Disconnect selected agent")
-        print("  quit                Shutdown server")
+        print("  help                           Display available commands")
+        print("  list                           Show all connected agents")
+        print("  select <agent_id>              Select agent for interaction")
+        print("  test                           Send test command to selected agent")
+        print("  download <remote> <local>      Download file from agent")
+        print("  exit                           Disconnect selected agent")
+        print("  quit                           Shutdown server")
         print()
 
     def _get_prompt(self) -> str:
@@ -423,6 +506,23 @@ class Server:
                     OutputFormatter.error("Select an agent first: select <agent_id>")
                     continue
                 self.send_test_to_agent(target)
+            elif cmd == "download":
+                target = self.selected_agent_id
+                if target is None:
+                    OutputFormatter.error("Select an agent first: select <agent_id>")
+                    continue
+                # Parse arguments: download <remote_path> <local_path>
+                args = arg.split(maxsplit=1)
+                if len(args) < 2:
+                    OutputFormatter.error("Usage: download <remote_path> <local_path>")
+                    continue
+                remote_path, local_path = args[0], args[1]
+                OutputFormatter.info(f"Downloading {remote_path} -> {local_path}...")
+                success = self.download_from_agent(target, remote_path, local_path)
+                if success:
+                    OutputFormatter.success(f"Downloaded {remote_path} -> {local_path}")
+                else:
+                    OutputFormatter.error(f"Failed to download {remote_path}")
             elif cmd == "exit":
                 if self.selected_agent_id is None:
                     OutputFormatter.warning("No agent selected.")

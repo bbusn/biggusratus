@@ -22,6 +22,7 @@ HANDSHAKE_ACTION = "handshake"
 # Temporary wire check; remove when real commands land.
 TEST_ACTION = "test"
 HELP_ACTION = "help"
+DOWNLOAD_ACTION = "download"
 
 # OS Types
 OS_WINDOWS = "windows"
