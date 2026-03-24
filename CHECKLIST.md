@@ -123,30 +123,30 @@
 - [x] Configurable port
 - [x] Multi-agent support (threading/asyncio)
 - [x] Graceful shutdown
-- [ ] Command-line interface
-- [ ] Agent list display
-- [ ] Agent selection
-- [ ] Command prompt
-- [ ] Output formatting
+- [x] Command-line interface
+- [x] Agent list display
+- [x] Agent selection
+- [x] Command prompt
+- [x] Output formatting
 - [x] Accept new connections
 - [x] Handle disconnections
-- [ ] Reconnection support
-- [ ] Connection timeout handling
+- [x] Reconnection support
+- [x] Connection timeout handling
 
 ### Sessions
 
-- [ ] Agent session tracking
-- [ ] Unique session IDs
-- [ ] Connection timestamp
-- [ ] Last seen tracking
-- [ ] Disconnect detection
-- [ ] Session cleanup
+- [x] Agent session tracking
+- [x] Unique session IDs
+- [x] Connection timestamp
+- [x] Last seen tracking
+- [x] Disconnect detection
+- [x] Session cleanup
 
 ### Commands
 
-- [ ] `list` - Show connected agents
-- [ ] `select <id>` - Select agent
+- [x] `list` - Show connected agents
+- [x] `select <id>` - Select agent
 - [x] `exit` - Disconnect agent
-- [ ] `quit` - Shutdown server
+- [x] `quit` - Shutdown server
 - [x] `help` - Display commands
-- [ ] Error handling for invalid commands
+- [x] Error handling for invalid commands

