@@ -19,14 +19,17 @@ def decode_message(data: bytes) -> Dict[str, Any]:
     return json.loads(data.decode("utf-8"))
 
 
-def build_handshake_command() -> Dict[str, Any]:
-    # Client → server first message.
+def build_handshake_command(os_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    # Client → server first message with optional OS info.
+    params = {}
+    if os_info is not None:
+        params["os_info"] = os_info
     return {
         "version": PROTOCOL_VERSION,
         "type": "command",
         "action": HANDSHAKE_ACTION,
         "id": str(uuid.uuid4()),
-        "params": {},
+        "params": params,
         "message": None,
         "timestamp": None,
     }
@@ -67,6 +70,12 @@ def extract_encryption_key_from_handshake(message: Dict[str, Any]) -> Optional[s
         return parsed.get("encryption_key")
     except json.JSONDecodeError:
         return None
+
+
+def extract_os_info_from_handshake(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    # Extract OS info from handshake command params.
+    params = message.get("params", {})
+    return params.get("os_info")
 
 
 def build_command(

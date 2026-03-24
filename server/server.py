@@ -25,6 +25,7 @@ from common.protocol import (
     build_success_response,
     decode_message,
     encode_message,
+    extract_os_info_from_handshake,
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
 from common.crypto import Encryptor, CryptoError
@@ -78,18 +79,19 @@ class OutputFormatter:
         if not sessions:
             return "No connected agents."
 
-        header = f"{'ID':<36} {'Address':<21} {'Duration':<10} {'Idle':<10} {'Status':<8}"
+        header = f"{'ID':<36} {'Address':<21} {'OS':<8} {'Duration':<10} {'Idle':<10} {'Status':<8}"
         lines = [header, "-" * len(header)]
 
         for session in sessions:
             session_id = session.agent_id[:8] + "..."
             address = f"{session.address[0]}:{session.address[1]}"
+            os_type = (session.os_type or "unknown")[:7]
             duration = OutputFormatter.format_duration(session.session_duration)
             idle = OutputFormatter.format_duration(session.idle_time)
             status = "active" if session.idle_time < 30 else "idle"
 
             marker = "*" if session.agent_id == selected_id else " "
-            line = f"{marker}{session_id:<35} {address:<21} {duration:<10} {idle:<10} {status:<8}"
+            line = f"{marker}{session_id:<35} {address:<21} {os_type:<8} {duration:<10} {idle:<10} {status:<8}"
             lines.append(line)
 
         return "\n".join(lines)
@@ -106,10 +108,17 @@ class AgentSession:
         self.last_seen = time.time()
         self.reconnect_count = 0
         self.encryptor: Optional[Encryptor] = None
+        self.os_type: Optional[str] = None
+        self.os_info: Optional[Dict[str, Any]] = None
 
     def update_last_seen(self) -> None:
         # Update the last seen timestamp.
         self.last_seen = time.time()
+
+    def set_os_info(self, os_info: Dict[str, Any]) -> None:
+        # Set the OS information for this agent.
+        self.os_info = os_info
+        self.os_type = os_info.get("os_type", "unknown")
 
     @property
     def session_duration(self) -> float:
@@ -193,15 +202,18 @@ class Server:
         agent_id: str,
     ) -> None:
         try:
-            encryptor = self._perform_handshake(client_socket)
+            encryptor, os_info = self._perform_handshake(client_socket)
             with self.lock:
                 session = self.sessions.get(agent_id)
                 if session:
                     session.encryptor = encryptor
+                    if os_info:
+                        session.set_os_info(os_info)
                     session.update_last_seen()
+            os_type = os_info.get("os_type", "unknown") if os_info else "unknown"
             logger.info(
                 f"Handshake complete for agent {agent_id} "
-                f"({address[0]}:{address[1]})"
+                f"({address[0]}:{address[1]}) - OS: {os_type}"
             )
             self._agent_message_loop(client_socket, agent_id)
         except socket.timeout as exc:
@@ -235,16 +247,20 @@ class Server:
                     self.selected_agent_id = None
             logger.info(f"Agent session closed: {agent_id}")
 
-    def _perform_handshake(self, client_socket: socket.socket) -> AgentSession:
+    def _perform_handshake(
+        self, client_socket: socket.socket
+    ) -> Tuple[Encryptor, Optional[Dict[str, Any]]]:
         raw = recv_frame(client_socket)
         message = decode_message(raw)
         self._validate_handshake_request(message)
         request_id = str(message.get("id", ""))
+        # Extract OS info from handshake
+        os_info = extract_os_info_from_handshake(message)
         # Create encryptor and send key in handshake response
         encryptor = Encryptor()
         response = build_handshake_response(request_id, encryptor=encryptor)
         send_frame(client_socket, encode_message(response))
-        return encryptor
+        return encryptor, os_info
 
     @staticmethod
     def _validate_handshake_request(message: Dict[str, Any]) -> None:

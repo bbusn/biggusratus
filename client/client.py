@@ -31,6 +31,7 @@ from common.protocol import (
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
 from common.crypto import Encryptor, key_from_string, CryptoError
+from common.platform import get_os_info
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,8 @@ class Client:
     def handshake(self) -> None:
         if self.socket is None:
             raise RuntimeError("Cannot handshake: not connected")
-        command = build_handshake_command()
+        os_info = get_os_info()
+        command = build_handshake_command(os_info=os_info)
         with self._send_lock:
             send_frame(self.socket, encode_message(command))
             raw = recv_frame(self.socket)
@@ -108,7 +110,7 @@ class Client:
             logger.info("Encryption enabled")
         else:
             logger.warning("No encryption key received, communication unencrypted")
-        logger.info("Handshake completed with server")
+        logger.info(f"Handshake completed with server (OS: {os_info.get('os_type')})")
 
     @staticmethod
     def _validate_handshake_response(

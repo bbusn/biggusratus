@@ -109,7 +109,7 @@
 
 ### OS Support
 
-- [ ] OS detection implemented
+- [x] OS detection implemented
 - [ ] All commands work on Windows
 - [ ] All commands work on Linux
 - [ ] Platform-specific code paths
