@@ -8,32 +8,32 @@ from server.server import OutputFormatter
 
 
 class TestOutputFormatter:
-    """Test cases for OutputFormatter."""
+    # Test cases for OutputFormatter.
 
     def test_format_duration_seconds(self) -> None:
-        """Test formatting duration less than a minute."""
+        # Test formatting duration less than a minute.
         assert OutputFormatter.format_duration(30) == "30s"
         assert OutputFormatter.format_duration(59) == "59s"
         assert OutputFormatter.format_duration(0.5) == "0s"
 
     def test_format_duration_minutes(self) -> None:
-        """Test formatting duration in minutes."""
+        # Test formatting duration in minutes.
         assert OutputFormatter.format_duration(60) == "1.0m"
         assert OutputFormatter.format_duration(120) == "2.0m"
         assert OutputFormatter.format_duration(90) == "1.5m"
 
     def test_format_duration_hours(self) -> None:
-        """Test formatting duration in hours."""
+        # Test formatting duration in hours.
         assert OutputFormatter.format_duration(3600) == "1.0h"
         assert OutputFormatter.format_duration(7200) == "2.0h"
 
     def test_format_session_table_empty(self) -> None:
-        """Test formatting empty session list."""
+        # Test formatting empty session list.
         result = OutputFormatter.format_session_table([])
         assert result == "No connected agents."
 
     def test_format_session_table_with_sessions(self) -> None:
-        """Test formatting session list with sessions."""
+        # Test formatting session list with sessions.
         from server.server import AgentSession
 
         sessions = [
@@ -50,7 +50,7 @@ class TestOutputFormatter:
         assert "Idle" in result
 
     def test_format_session_table_with_selected(self) -> None:
-        """Test formatting session list with selected agent."""
+        # Test formatting session list with selected agent.
         from server.server import AgentSession
 
         sessions = [AgentSession("test-id-1", ("192.168.1.1", 12345))]
@@ -59,7 +59,7 @@ class TestOutputFormatter:
         assert "*test-id-..." in result
 
     def test_format_session_table_without_selected(self) -> None:
-        """Test formatting session list without selected agent."""
+        # Test formatting session list without selected agent.
         from server.server import AgentSession
 
         sessions = [AgentSession("test-id-1", ("192.168.1.1", 12345))]
@@ -68,7 +68,7 @@ class TestOutputFormatter:
         assert " test-id-..." in result
 
     def test_info_output(self, capsys: pytest.CaptureFixture) -> None:
-        """Test info output format."""
+        # Test info output format.
         with patch("server.server.datetime") as mock_datetime:
             mock_datetime.now().strftime.return_value = "12:00:00"
             OutputFormatter.info("Test message")
@@ -76,7 +76,7 @@ class TestOutputFormatter:
             assert "[12:00:00] Test message" in captured.out
 
     def test_error_output(self, capsys: pytest.CaptureFixture) -> None:
-        """Test error output format."""
+        # Test error output format.
         with patch("server.server.datetime") as mock_datetime:
             mock_datetime.now().strftime.return_value = "12:00:00"
             OutputFormatter.error("Error message")
@@ -84,7 +84,7 @@ class TestOutputFormatter:
             assert "[12:00:00] [!] Error message" in captured.err
 
     def test_success_output(self, capsys: pytest.CaptureFixture) -> None:
-        """Test success output format."""
+        # Test success output format.
         with patch("server.server.datetime") as mock_datetime:
             mock_datetime.now().strftime.return_value = "12:00:00"
             OutputFormatter.success("Success message")
@@ -92,7 +92,7 @@ class TestOutputFormatter:
             assert "[12:00:00] [+] Success message" in captured.out
 
     def test_warning_output(self, capsys: pytest.CaptureFixture) -> None:
-        """Test warning output format."""
+        # Test warning output format.
         with patch("server.server.datetime") as mock_datetime:
             mock_datetime.now().strftime.return_value = "12:00:00"
             OutputFormatter.warning("Warning message")
@@ -101,10 +101,10 @@ class TestOutputFormatter:
 
 
 class TestArgParse:
-    """Test cases for argparse functionality."""
+    # Test cases for argparse functionality.
 
     def test_server_parse_args_defaults(self) -> None:
-        """Test server default arguments."""
+        # Test server default arguments.
         from server.server import parse_args
         with patch("sys.argv", ["server"]):
             args = parse_args()
@@ -113,7 +113,7 @@ class TestArgParse:
             assert args.verbose is False
 
     def test_server_parse_args_custom(self) -> None:
-        """Test server custom arguments."""
+        # Test server custom arguments.
         from server.server import parse_args
         with patch("sys.argv", ["server", "--host", "127.0.0.1", "--port", "8443", "-v"]):
             args = parse_args()
@@ -122,7 +122,7 @@ class TestArgParse:
             assert args.verbose is True
 
     def test_client_parse_args_defaults(self) -> None:
-        """Test client default arguments."""
+        # Test client default arguments.
         from client.client import parse_args
         with patch("sys.argv", ["client"]):
             args = parse_args()
@@ -131,7 +131,7 @@ class TestArgParse:
             assert args.verbose is False
 
     def test_client_parse_args_custom(self) -> None:
-        """Test client custom arguments."""
+        # Test client custom arguments.
         from client.client import parse_args
         with patch("sys.argv", ["client", "--host", "192.168.1.100", "--port", "9999", "--verbose"]):
             args = parse_args()
@@ -141,17 +141,17 @@ class TestArgParse:
 
 
 class TestServerPrompt:
-    """Test cases for server prompt generation."""
+    # Test cases for server prompt generation.
 
     def test_prompt_no_sessions(self) -> None:
-        """Test prompt with no sessions."""
+        # Test prompt with no sessions.
         from server.server import Server
         server = Server()
         prompt = server._get_prompt()
         assert prompt == "rat[0]> "
 
     def test_prompt_with_sessions(self) -> None:
-        """Test prompt with sessions but no selection."""
+        # Test prompt with sessions but no selection.
         from server.server import Server, AgentSession
         server = Server()
         server.sessions["test-id"] = AgentSession("test-id", ("127.0.0.1", 12345))
@@ -159,7 +159,7 @@ class TestServerPrompt:
         assert prompt == "rat[1]> "
 
     def test_prompt_with_selection(self) -> None:
-        """Test prompt with selected agent."""
+        # Test prompt with selected agent.
         from server.server import Server, AgentSession
         server = Server()
         server.sessions["test-id-12345678"] = AgentSession("test-id-12345678", ("127.0.0.1", 12345))

@@ -52,18 +52,18 @@ class Client:
 
     @staticmethod
     def _calculate_backoff(attempt: int) -> float:
-        """Calculate backoff delay with exponential backoff and jitter."""
+        # Calculate backoff delay with exponential backoff and jitter.
         import random
         delay = min(RETRY_DELAY * (RETRY_BACKOFF_FACTOR**attempt), RETRY_DELAY_MAX)
         jitter = delay * 0.1 * random.random()
         return delay + jitter
 
     def _reset_retry_count(self) -> None:
-        """Reset retry count after successful connection."""
+        # Reset retry count after successful connection.
         self._retry_count = 0
 
     def _increment_retry(self) -> int:
-        """Increment and return the retry count."""
+        # Increment and return the retry count.
         self._retry_count += 1
         return self._retry_count
 
@@ -205,11 +205,11 @@ class Client:
                 logger.warning(f"Unknown input: {line}")
 
     def run_receive_loop(self) -> None:
-        """Block processing framed messages until the connection drops."""
+        # Block processing framed messages until the connection drops.
         self._receive_loop()
 
     def run_session(self) -> None:
-        """Connect, handshake, then process bidirectional traffic."""
+        # Connect, handshake, then process bidirectional traffic.
         self.connect()
         self.handshake()
         recv_thread = threading.Thread(
@@ -237,14 +237,14 @@ class Client:
         logger.info("Client disconnected")
 
     def shutdown(self) -> None:
-        """Shutdown the client completely (no reconnection)."""
+        # Shutdown the client completely (no reconnection).
         self._shutdown = True
         self.disconnect()
         logger.info("Client shutdown requested")
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
+    # Parse command-line arguments.
     parser = argparse.ArgumentParser(
         description="BiggusRatus Client - Remote Administration Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -1,4 +1,4 @@
-"""JSON message helpers aligned with README communication format (pre-encryption)."""
+# JSON message helpers aligned with README communication format (pre-encryption).
 
 import json
 import time
@@ -9,17 +9,17 @@ from common.constants import HANDSHAKE_ACTION, PROTOCOL_VERSION
 
 
 def encode_message(message: Dict[str, Any]) -> bytes:
-    """Serialize a protocol message to UTF-8 JSON bytes."""
+    # Serialize a protocol message to UTF-8 JSON bytes.
     return json.dumps(message, separators=(",", ":")).encode("utf-8")
 
 
 def decode_message(data: bytes) -> Dict[str, Any]:
-    """Parse a UTF-8 JSON protocol message."""
+    # Parse a UTF-8 JSON protocol message.
     return json.loads(data.decode("utf-8"))
 
 
 def build_handshake_command() -> Dict[str, Any]:
-    """Client → server first message."""
+    # Client → server first message.
     return {
         "version": PROTOCOL_VERSION,
         "type": "command",
@@ -32,7 +32,7 @@ def build_handshake_command() -> Dict[str, Any]:
 
 
 def build_handshake_response(request_id: str) -> Dict[str, Any]:
-    """Server → client handshake acknowledgement."""
+    # Server → client handshake acknowledgement.
     return {
         "version": PROTOCOL_VERSION,
         "type": "response",
@@ -56,7 +56,7 @@ def build_command(
     *,
     message_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a command message (either direction on the wire)."""
+    # Build a command message (either direction on the wire).
     return {
         "version": PROTOCOL_VERSION,
         "type": "command",
@@ -77,7 +77,7 @@ def build_success_response(
     content_type: str = "application/json",
     message: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a successful response for a given command id."""
+    # Build a successful response for a given command id.
     return {
         "version": PROTOCOL_VERSION,
         "type": "response",

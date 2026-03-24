@@ -32,36 +32,36 @@ logger = logging.getLogger(__name__)
 
 
 class OutputFormatter:
-    """Handles formatted output for the server CLI."""
+    # Handles formatted output for the server CLI.
 
     @staticmethod
     def timestamp() -> str:
-        """Return current timestamp string."""
+        # Return current timestamp string.
         return datetime.now().strftime("%H:%M:%S")
 
     @staticmethod
     def info(message: str) -> None:
-        """Print an info message with timestamp."""
+        # Print an info message with timestamp.
         print(f"[{OutputFormatter.timestamp()}] {message}")
 
     @staticmethod
     def error(message: str) -> None:
-        """Print an error message with timestamp."""
+        # Print an error message with timestamp.
         print(f"[{OutputFormatter.timestamp()}] [!] {message}", file=sys.stderr)
 
     @staticmethod
     def success(message: str) -> None:
-        """Print a success message with timestamp."""
+        # Print a success message with timestamp.
         print(f"[{OutputFormatter.timestamp()}] [+] {message}")
 
     @staticmethod
     def warning(message: str) -> None:
-        """Print a warning message with timestamp."""
+        # Print a warning message with timestamp.
         print(f"[{OutputFormatter.timestamp()}] [?] {message}")
 
     @staticmethod
     def format_duration(seconds: float) -> str:
-        """Format duration in human-readable format."""
+        # Format duration in human-readable format.
         if seconds < 60:
             return f"{seconds:.0f}s"
         elif seconds < 3600:
@@ -73,7 +73,7 @@ class OutputFormatter:
 
     @staticmethod
     def format_session_table(sessions: list, selected_id: Optional[str] = None) -> str:
-        """Format sessions as a table."""
+        # Format sessions as a table.
         if not sessions:
             return "No connected agents."
 
@@ -95,7 +95,7 @@ class OutputFormatter:
 
 
 class AgentSession:
-    """Represents a connected agent session."""
+    # Represents a connected agent session.
 
     def __init__(self, agent_id: str, address: Tuple[str, int]) -> None:
         self.agent_id = agent_id
@@ -106,17 +106,17 @@ class AgentSession:
         self.reconnect_count = 0
 
     def update_last_seen(self) -> None:
-        """Update the last seen timestamp."""
+        # Update the last seen timestamp.
         self.last_seen = time.time()
 
     @property
     def session_duration(self) -> float:
-        """Return session duration in seconds."""
+        # Return session duration in seconds.
         return time.time() - self.connected_at
 
     @property
     def idle_time(self) -> float:
-        """Return idle time in seconds since last activity."""
+        # Return idle time in seconds since last activity.
         return time.time() - self.last_seen
 
 
@@ -306,7 +306,7 @@ class Server:
 
     @staticmethod
     def _print_help() -> None:
-        """Display available server commands."""
+        # Display available server commands.
         print("\nAvailable commands:")
         print("  help                Display available commands")
         print("  list                Show all connected agents")
@@ -317,7 +317,7 @@ class Server:
         print()
 
     def _get_prompt(self) -> str:
-        """Generate the command prompt with context."""
+        # Generate the command prompt with context.
         with self.lock:
             session_count = len(self.sessions)
             selected = self.selected_agent_id
@@ -407,7 +407,7 @@ class Server:
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
+    # Parse command-line arguments.
     parser = argparse.ArgumentParser(
         description="BiggusRatus Server - Remote Administration Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
