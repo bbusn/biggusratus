@@ -49,7 +49,7 @@ def test_test_command_roundtrip_server_to_client() -> None:
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
         with server.lock:
-            agent_ids = list(server.agents.keys())
+            agent_ids = list(server.sessions.keys())
         if len(agent_ids) == 1:
             break
         time.sleep(0.01)
@@ -57,7 +57,7 @@ def test_test_command_roundtrip_server_to_client() -> None:
         raise AssertionError("agent did not register in time")
 
     with server.lock:
-        agent_ids = list(server.agents.keys())
+        agent_ids = list(server.sessions.keys())
     server.send_test_to_agent(agent_ids[0])
     client.disconnect()
     server.stop()
@@ -89,7 +89,7 @@ def test_test_command_roundtrip_client_to_server() -> None:
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
         with server.lock:
-            agent_ids = list(server.agents.keys())
+            agent_ids = list(server.sessions.keys())
         if len(agent_ids) == 1:
             break
         time.sleep(0.01)
