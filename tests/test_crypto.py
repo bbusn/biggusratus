@@ -3,6 +3,7 @@ import pytest
 from common.crypto import (
     CryptoError,
     Encryptor,
+    derive_keys_from_shared_secret,
     generate_key,
     key_from_string,
     key_to_string,
@@ -129,3 +130,19 @@ class TestEncryptor:
         ciphertext = encryptor.encrypt(plaintext)
         decrypted = encryptor.decrypt(ciphertext)
         assert decrypted == plaintext
+
+    def test_from_shared_secret_derives_hmac_key(self) -> None:
+        raw = b"\xab" * 32
+        enc1, mac1 = derive_keys_from_shared_secret(raw)
+        encryptor = Encryptor.from_shared_secret(raw)
+        assert encryptor.key == enc1
+        assert encryptor.hmac_key == mac1
+        assert isinstance(encryptor.hmac_key, bytes)
+        assert len(encryptor.hmac_key) == 32
+
+    def test_from_shared_secret_roundtrip_decrypt(self) -> None:
+        raw = b"\xcd" * 32
+        a = Encryptor.from_shared_secret(raw)
+        b = Encryptor.from_shared_secret(raw)
+        ct = a.encrypt(b"payload")
+        assert b.decrypt(ct) == b"payload"
