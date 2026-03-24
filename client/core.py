@@ -33,10 +33,13 @@ from common.protocol import (
     decode_message,
     encode_message,
     extract_dh_public_key_from_handshake_response,
+    sign_message,
+    verify_message,
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
 from common.crypto import Encryptor, key_from_string, CryptoError
 from common.key_exchange import ECDHExchange, KeyExchangeError
+from common.hmac import MessageAuthenticator
 from common.platform import get_os_info
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,7 @@ class Client:
         self._retry_count = 0
         self._shutdown = False
         self._encryptor: Optional[Encryptor] = None
+        self._authenticator: Optional[MessageAuthenticator] = None
 
     @staticmethod
     def _calculate_backoff(attempt: int) -> float:
@@ -124,6 +128,9 @@ class Client:
         if server_dh_public:
             shared_secret = ecdh_exchange.compute_shared_key(server_dh_public)
             self._encryptor = Encryptor.from_shared_secret(shared_secret)
+            # Create authenticator for HMAC verification using the derived HMAC key
+            if self._encryptor.hmac_key:
+                self._authenticator = MessageAuthenticator(self._encryptor.hmac_key)
             logger.info("Encryption enabled via ECDH key exchange")
         else:
             raise ValueError("Server did not provide ECDH public key for secure key exchange")
@@ -173,6 +180,9 @@ class Client:
 
     def _handle_incoming_message(self, message: Dict[str, Any]) -> None:
         if message.get("type") == "response":
+            if self._authenticator and not verify_message(message, self._authenticator):
+                logger.error("HMAC verification failed for response")
+                return
             rid = str(message.get("id", ""))
             with self._response_lock:
                 waiter = self._response_waiters.pop(rid, None)
@@ -184,6 +194,12 @@ class Client:
         if message.get("type") == "command":
             action = message.get("action")
             logger.info(f"Received command: {message}")
+            if self._authenticator and not verify_message(message, self._authenticator):
+                logger.error(f"HMAC verification failed for command {action}")
+                return
+            if self._authenticator:
+                logger.debug(f"HMAC verified for command {action}")
+            
             if self.socket is None:
                 return
             req_id = str(message.get("id", ""))
@@ -202,6 +218,11 @@ class Client:
             else:
                 logger.warning(f"Unknown command action: {action}")
                 return
+            
+            # Sign the response if we have an authenticator
+            if self._authenticator:
+                reply = sign_message(reply, self._authenticator)
+            
             with self._send_lock:
                 self._send_encrypted_frame(reply)
             return
@@ -233,6 +254,11 @@ class Client:
             logger.error("Not connected")
             return
         cmd = build_command(TEST_ACTION, {})
+        
+        # Sign the command if we have an authenticator
+        if self._authenticator:
+            cmd = sign_message(cmd, self._authenticator)
+        
         request_id = str(cmd["id"])
         waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
         with self._response_lock:
@@ -284,6 +310,7 @@ class Client:
     def disconnect(self) -> None:
         self.connected = False
         self._encryptor = None
+        self._authenticator = None
         if self.socket:
             try:
                 self.socket.shutdown(socket.SHUT_RDWR)

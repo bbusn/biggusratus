@@ -9,7 +9,28 @@ from client.commands.base import BaseCommand
 
 logger = logging.getLogger(__name__)
 
-# Chunk size for reading files (1 MB)
+
+def _validate_path(path: str) -> bool:
+    # Validate that the path doesn't contain null bytes or control characters.
+    
+    # Args:
+    #     path: The path to validate
+    # Returns:
+    #     bool: True if path is valid, False otherwise
+    
+    # Check for null bytes
+    if '\x00' in path:
+        return False
+        
+    # Check for control characters (except tab, newline, carriage return)
+    for char in path:
+        if ord(char) < 32 and char not in ('\t', '\n', '\r'):
+            return False
+            
+    return True
+
+# Chunk size for reading/encoding files (1 MB)
+# Base64 increases size by ~33%, so 1MB binary -> ~1.33MB encoded
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -29,6 +50,13 @@ class DownloadCommand(BaseCommand):
         remote_path = params.get("remote_path")
         if not remote_path:
             return self._error_response("Missing required parameter: remote_path")
+        
+        # Validate path for security issues
+        if not isinstance(remote_path, str):
+            return self._error_response("Invalid parameter: remote_path must be a string")
+            
+        if not _validate_path(remote_path):
+            return self._error_response("Invalid parameter: remote_path contains null bytes or control characters")
 
         try:
             # Validate and normalize the path
@@ -48,16 +76,19 @@ class DownloadCommand(BaseCommand):
 
             logger.info(f"Downloading file: {remote_path} ({file_size} bytes)")
 
-            # Read file in chunks for memory efficiency with large files
-            content_chunks = []
+            # Stream file reading and base64 encoding to avoid loading
+            # entire file into memory twice (raw + encoded)
+            encoded_chunks = []
             bytes_read = 0
             progress_percent = 0
+
             with open(remote_path, "rb") as f:
                 while True:
                     chunk = f.read(CHUNK_SIZE)
                     if not chunk:
                         break
-                    content_chunks.append(chunk)
+                    # Encode each chunk immediately to avoid holding raw data
+                    encoded_chunks.append(base64.b64encode(chunk).decode("utf-8"))
                     bytes_read += len(chunk)
                     # Log progress at 25% intervals
                     if file_size > 0:
@@ -69,9 +100,8 @@ class DownloadCommand(BaseCommand):
                                 f"({bytes_read}/{file_size} bytes)"
                             )
 
-            # Combine and encode
-            content = b"".join(content_chunks)
-            encoded_content = base64.b64encode(content).decode("utf-8")
+            # Combine encoded chunks (only the encoded version stays in memory)
+            encoded_content = "".join(encoded_chunks)
 
             logger.info(f"File download complete: {remote_path} ({bytes_read} bytes)")
 

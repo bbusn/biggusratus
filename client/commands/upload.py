@@ -10,6 +10,7 @@ from client.commands.base import BaseCommand
 logger = logging.getLogger(__name__)
 
 # Chunk size for writing files (1 MB)
+# We decode in chunks to avoid loading entire decoded content in memory
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -38,15 +39,9 @@ class UploadCommand(BaseCommand):
             # Validate and normalize the path (prevent path traversal)
             remote_path = os.path.normpath(remote_path)
 
-            # Decode the content
-            try:
-                content = base64.b64decode(content_base64)
-            except Exception as e:
-                return self._error_response(f"Invalid base64 content: {e}")
-
-            file_size = len(content)
-
-            logger.info(f"Uploading file: {remote_path} ({file_size} bytes)")
+            # Estimate decoded size (base64 is ~33% larger than original)
+            estimated_size = (len(content_base64) * 3) // 4
+            logger.info(f"Uploading file: {remote_path} (~{estimated_size} bytes)")
 
             # Create parent directories if needed
             parent_dir = os.path.dirname(remote_path)
@@ -54,20 +49,33 @@ class UploadCommand(BaseCommand):
                 os.makedirs(parent_dir, exist_ok=True)
                 logger.info(f"Created directory: {parent_dir}")
 
-            # Write file in chunks for memory efficiency
+            # Stream base64 decoding to file to avoid loading entire
+            # decoded content in memory at once
             bytes_written = 0
+            progress_percent = 0
+
             with open(remote_path, "wb") as f:
+                # Read and decode in chunks (must be multiple of 4 for base64)
+                # Using larger chunk to reduce iterations but still memory-efficient
+                decode_chunk_size = CHUNK_SIZE * 4  # 4MB of base64 at a time
                 offset = 0
-                while offset < file_size:
-                    chunk = content[offset : offset + CHUNK_SIZE]
-                    f.write(chunk)
-                    bytes_written += len(chunk)
-                    offset += CHUNK_SIZE
+
+                while offset < len(content_base64):
+                    chunk = content_base64[offset : offset + decode_chunk_size]
+                    decoded = base64.b64decode(chunk)
+                    f.write(decoded)
+                    bytes_written += len(decoded)
+                    offset += decode_chunk_size
+
                     # Log progress at 25% intervals
-                    if file_size > 0:
-                        progress = int((bytes_written / file_size) * 100)
-                        if progress % 25 == 0:
-                            logger.info(f"Upload progress: {progress}% ({bytes_written}/{file_size} bytes)")
+                    if estimated_size > 0:
+                        new_percent = int((bytes_written / estimated_size) * 100)
+                        if new_percent >= progress_percent + 25:
+                            progress_percent = (new_percent // 25) * 25
+                            logger.info(
+                                f"Upload progress: {progress_percent}% "
+                                f"({bytes_written}/{estimated_size} bytes)"
+                            )
 
             logger.info(f"File upload complete: {remote_path} ({bytes_written} bytes)")
 
@@ -78,6 +86,9 @@ class UploadCommand(BaseCommand):
                 "message": f"Successfully uploaded {remote_path}",
             }
 
+        except base64.binascii.Error as e:
+            logger.error(f"Invalid base64 content: {e}")
+            return self._error_response(f"Invalid base64 content: {e}")
         except PermissionError as e:
             logger.error(f"Permission denied writing to {remote_path}: {e}")
             return self._error_response(f"Permission denied: {remote_path}")

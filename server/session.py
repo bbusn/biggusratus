@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 from common.crypto import Encryptor
+from common.hmac import MessageAuthenticator
 
 
 class AgentSession:
@@ -18,6 +19,7 @@ class AgentSession:
         self.last_seen = time.time()
         self.reconnect_count = 0
         self.encryptor: Optional[Encryptor] = None
+        self.authenticator: Optional[MessageAuthenticator] = None
         self.os_type: Optional[str] = None
         self.os_info: Optional[Dict[str, Any]] = None
 

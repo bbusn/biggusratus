@@ -36,10 +36,13 @@ from common.protocol import (
     encode_message,
     extract_os_info_from_handshake,
     extract_dh_public_key_from_handshake_command,
+    sign_message,
+    verify_message,
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
 from common.crypto import Encryptor, CryptoError
 from common.key_exchange import ECDHExchange, KeyExchangeError
+from common.hmac import MessageAuthenticator, HmacError
 from server.output import OutputFormatter
 from server.session import AgentSession
 from server.path_security import validate_local_path, PathSecurityError
@@ -247,11 +250,13 @@ class Server:
         agent_id: str,
     ) -> None:
         try:
-            encryptor, os_info = self._perform_handshake(client_socket)
+            encryptor, os_info, hmac_key = self._perform_handshake(client_socket)
             with self.lock:
                 session = self.sessions.get(agent_id)
                 if session:
                     session.encryptor = encryptor
+                    if hmac_key:
+                        session.authenticator = MessageAuthenticator(hmac_key)
                     if os_info:
                         session.set_os_info(os_info)
                     session.update_last_seen()
@@ -273,6 +278,7 @@ class Server:
             json.JSONDecodeError,
             CryptoError,
             KeyExchangeError,
+            HmacError,
         ) as exc:
             logger.warning(
                 f"Agent {agent_id} ({address[0]}:{address[1]}) disconnected: {exc}"
@@ -296,7 +302,7 @@ class Server:
 
     def _perform_handshake(
         self, client_socket: socket.socket
-    ) -> Tuple[Encryptor, Optional[Dict[str, Any]]]:
+    ) -> Tuple[Encryptor, Optional[Dict[str, Any]], Optional[bytes]]:
         raw = recv_frame(client_socket)
         message = decode_message(raw)
         self._validate_handshake_request(message)
@@ -320,7 +326,7 @@ class Server:
 
         response = build_handshake_response(request_id, dh_public_key=server_dh_public)
         send_frame(client_socket, encode_message(response))
-        return encryptor, os_info
+        return encryptor, os_info, encryptor.hmac_key
 
     @staticmethod
     def _validate_handshake_request(message: Dict[str, Any]) -> None:
@@ -337,7 +343,14 @@ class Server:
         with self.lock:
             session = self.sessions.get(agent_id)
             encryptor = session.encryptor if session else None
+            authenticator = session.authenticator if session else None
+        
         if message.get("type") == "response":
+            if authenticator and not verify_message(message, authenticator):
+                logger.error(
+                    f"HMAC verification failed for response from agent {agent_id}"
+                )
+                return
             rid = str(message.get("id", ""))
             with self._response_lock:
                 waiter = self._response_waiters.pop(rid, None)
@@ -347,11 +360,24 @@ class Server:
             logger.info(f"Received response from agent {agent_id}: {message}")
             return
         if message.get("type") == "command" and message.get("action") == TEST_ACTION:
+            if authenticator and not verify_message(message, authenticator):
+                logger.error(
+                    f"HMAC verification failed for command from agent {agent_id}"
+                )
+                return
+            if authenticator:
+                logger.debug(f"HMAC verified for command from agent {agent_id}")
+            
             logger.info(f"Received command from agent {agent_id}: {message}")
             req_id = str(message.get("id", ""))
             reply = build_success_response(
                 req_id, TEST_ACTION, payload='{"ok":true}', message="test-ok"
             )
+            
+            # Sign the response if we have an authenticator
+            if authenticator:
+                reply = sign_message(reply, authenticator)
+            
             plaintext = encode_message(reply)
             if encryptor is not None:
                 ciphertext = encryptor.encrypt(plaintext)
@@ -395,10 +421,16 @@ class Server:
             session = self.sessions.get(agent_id)
             sock = session.socket if session else None
             encryptor = session.encryptor if session else None
+            authenticator = session.authenticator if session else None
         if sock is None:
             logger.error(f"No such agent: {agent_id}")
             return
         cmd = build_command(TEST_ACTION, {})
+        
+        # Sign the command if we have an authenticator
+        if authenticator:
+            cmd = sign_message(cmd, authenticator)
+        
         request_id = str(cmd["id"])
         waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
         with self._response_lock:
@@ -411,6 +443,8 @@ class Server:
                 ciphertext = plaintext
             send_frame(sock, ciphertext)
             response = waiter.get(timeout=30.0)
+            # HMAC was verified in _handle_agent_incoming before the response was queued.
+
             with self.lock:
                 session = self.sessions.get(agent_id)
                 if session:
@@ -430,6 +464,7 @@ class Server:
             session = self.sessions.get(agent_id)
             sock = session.socket if session else None
             encryptor = session.encryptor if session else None
+            authenticator = session.authenticator if session else None
         if sock is None:
             logger.error(f"No such agent: {agent_id}")
             return False
@@ -443,6 +478,11 @@ class Server:
             return False
 
         cmd = build_command(DOWNLOAD_ACTION, {"remote_path": remote_path})
+        
+        # Sign the command if we have an authenticator
+        if authenticator:
+            cmd = sign_message(cmd, authenticator)
+        
         request_id = str(cmd["id"])
         waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
         with self._response_lock:
@@ -456,6 +496,7 @@ class Server:
             send_frame(sock, ciphertext)
 
             response = waiter.get(timeout=120.0)
+            # HMAC was verified in _handle_agent_incoming before the response was queued.
 
             with self.lock:
                 session = self.sessions.get(agent_id)
@@ -524,6 +565,7 @@ class Server:
             session = self.sessions.get(agent_id)
             sock = session.socket if session else None
             encryptor = session.encryptor if session else None
+            authenticator = session.authenticator if session else None
         if sock is None:
             logger.error(f"No such agent: {agent_id}")
             return False
@@ -568,6 +610,11 @@ class Server:
                 "remote_path": remote_path,
                 "content": content_base64
             })
+            
+            # Sign the command if we have an authenticator
+            if authenticator:
+                cmd = sign_message(cmd, authenticator)
+            
             request_id = str(cmd["id"])
             waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
             with self._response_lock:
@@ -581,6 +628,7 @@ class Server:
             send_frame(sock, ciphertext)
 
             response = waiter.get(timeout=120.0)
+            # HMAC was verified in _handle_agent_incoming before the response was queued.
 
             with self.lock:
                 session = self.sessions.get(agent_id)

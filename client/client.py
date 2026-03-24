@@ -10,6 +10,7 @@ from common.constants import (
 from common.tcp import ProtocolError
 from common.crypto import CryptoError
 from common.key_exchange import KeyExchangeError
+from common.hmac import HmacError
 from client.core import Client
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def main() -> None:
             )
             client.disconnect()
             time.sleep(backoff)
-        except (ProtocolError, ValueError, CryptoError, KeyExchangeError) as exc:
+        except (ProtocolError, ValueError, CryptoError, KeyExchangeError, HmacError) as exc:
             if client._shutdown:
                 break
             attempt = client._increment_retry()

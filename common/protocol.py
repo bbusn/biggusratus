@@ -7,6 +7,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from common.constants import HANDSHAKE_ACTION, PROTOCOL_VERSION
+from common.hmac import HmacError, MessageAuthenticator
 
 
 def encode_message(message: Dict[str, Any]) -> bytes:
@@ -114,6 +115,20 @@ def build_command(
         "message": None,
         "timestamp": time.time(),
     }
+
+
+def sign_message(message: Dict[str, Any], authenticator: MessageAuthenticator) -> Dict[str, Any]:
+    # Sign a message with HMAC and return the signed message.
+    return authenticator.sign_message(message)
+
+
+def verify_message(message: Dict[str, Any], authenticator: MessageAuthenticator) -> bool:
+    # Verify a message's HMAC signature.
+    # Returns True if valid, False if missing or invalid.
+    try:
+        return authenticator.verify_message(message)
+    except HmacError:
+        return False
 
 
 def build_success_response(
