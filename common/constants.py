@@ -18,6 +18,11 @@ LENGTH_PREFIX_BYTES = 4
 MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 PROTOCOL_VERSION = "1.0"
 
+# File transfer limits (protect server from memory exhaustion)
+# Max file size in bytes (50 MB default)
+# Note: base64 encoding increases size by ~33%, so actual memory usage is higher
+MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+
 HANDSHAKE_ACTION = "handshake"
 # Temporary wire check; remove when real commands land.
 TEST_ACTION = "test"
