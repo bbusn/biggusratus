@@ -22,9 +22,9 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m client.client                           # Connect to localhost:4444
+  python -m client.client                           # Connect to localhost:8443
   python -m client.client --host 192.168.1.100      # Connect to specific host
-  python -m client.client --port 8443               # Connect to specific port
+  python -m client.client --port 9443               # Connect to specific port
   python -m client.client --verbose                 # Enable debug logging
         """,
     )

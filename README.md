@@ -127,7 +127,7 @@ def download_file():
     file_path = "/tmp/file"
 
 # Constants - UPPER_SNAKE_CASE
-DEFAULT_PORT = 4444
+DEFAULT_PORT = 8443
 MAX_RETRIES = 3
 ```
 

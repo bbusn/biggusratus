@@ -90,7 +90,7 @@ class TestArgParse:
         with patch("sys.argv", ["server"]):
             args = parse_args()
             assert args.host == "0.0.0.0"
-            assert args.port == 4444
+            assert args.port == 8443
             assert args.verbose is False
 
     def test_server_parse_args_custom(self) -> None:
@@ -105,7 +105,7 @@ class TestArgParse:
         with patch("sys.argv", ["client"]):
             args = client_parse_args()
             assert args.host == "127.0.0.1"
-            assert args.port == 4444
+            assert args.port == 8443
             assert args.verbose is False
 
     def test_client_parse_args_custom(self) -> None:

@@ -35,8 +35,8 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m server.server                    # Start server on default port 4444
-  python -m server.server --port 8443        # Start server on port 8443
+  python -m server.server                    # Start server on default port 8443
+  python -m server.server --port 9443        # Start server on port 9443
   python -m server.server --host 0.0.0.0     # Listen on all interfaces
   python -m server.server --verbose          # Enable debug logging
         """,

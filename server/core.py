@@ -7,16 +7,22 @@ import os
 import queue
 import socket
 import threading
+import time
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from common.constants import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
+    MAX_CONNECTIONS_PER_IP_PER_MINUTE,
+    MAX_CONCURRENT_CONNECTIONS_PER_IP,
     MAX_FILE_SIZE_BYTES,
+    MAX_TOTAL_CONNECTIONS,
     PROTOCOL_VERSION,
+    RATE_LIMIT_BAN_SECONDS,
     READ_TIMEOUT_SEC,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
@@ -41,12 +47,133 @@ from server.path_security import validate_local_path, PathSecurityError
 logger = logging.getLogger(__name__)
 
 
+class RateLimiter:
+    # Thread-safe rate limiter to protect against connection flooding and DoS attacks.
+    # Tracks connections per IP and enforces limits on connection rate and concurrency.
+
+    def __init__(
+        self,
+        max_connections_per_ip_per_minute: int = MAX_CONNECTIONS_PER_IP_PER_MINUTE,
+        max_concurrent_per_ip: int = MAX_CONCURRENT_CONNECTIONS_PER_IP,
+        max_total_connections: int = MAX_TOTAL_CONNECTIONS,
+        ban_duration_seconds: int = RATE_LIMIT_BAN_SECONDS,
+    ):
+        self.max_connections_per_ip_per_minute = max_connections_per_ip_per_minute
+        self.max_concurrent_per_ip = max_concurrent_per_ip
+        self.max_total_connections = max_total_connections
+        self.ban_duration_seconds = ban_duration_seconds
+        self._lock = threading.Lock()
+        # IP -> list of connection timestamps
+        self._connection_history: Dict[str, List[float]] = defaultdict(list)
+        # IP -> count of active connections
+        self._active_connections: Dict[str, int] = defaultdict(int)
+        # IP -> ban expiry timestamp
+        self._banned_ips: Dict[str, float] = {}
+        # Total active connections
+        self._total_active = 0
+
+    def is_banned(self, ip: str) -> bool:
+        # Check if an IP is currently banned.
+        with self._lock:
+            ban_expiry = self._banned_ips.get(ip)
+            if ban_expiry is None:
+                return False
+            if time.time() > ban_expiry:
+                del self._banned_ips[ip]
+                return False
+            return True
+
+    def _cleanup_old_connections(self, ip: str) -> None:
+        # Remove connection records older than 60 seconds.
+        cutoff = time.time() - 60.0
+        self._connection_history[ip] = [
+            t for t in self._connection_history[ip] if t > cutoff
+        ]
+
+    def try_accept(self, ip: str) -> Tuple[bool, str]:
+        # Attempt to accept a new connection from the given IP.
+        # Returns (allowed, reason) where reason explains rejection if not allowed.
+        with self._lock:
+            # Check if IP is banned
+            if self.is_banned(ip):
+                return False, "IP is temporarily banned due to rate limiting"
+
+            # Clean up old connection records
+            self._cleanup_old_connections(ip)
+
+            # Check per-IP connection rate
+            recent_count = len(self._connection_history[ip])
+            if recent_count >= self.max_connections_per_ip_per_minute:
+                self._ban_ip(ip)
+                return False, f"Too many connections from {ip} (rate limit exceeded)"
+
+            # Check per-IP concurrent connections
+            if self._active_connections[ip] >= self.max_concurrent_per_ip:
+                return False, f"Too many concurrent connections from {ip}"
+
+            # Check total connections
+            if self._total_active >= self.max_total_connections:
+                return False, "Server at maximum capacity"
+
+            # Record the connection
+            self._connection_history[ip].append(time.time())
+            self._active_connections[ip] += 1
+            self._total_active += 1
+            return True, ""
+
+    def release(self, ip: str) -> None:
+        # Release a connection slot for the given IP.
+        with self._lock:
+            if self._active_connections[ip] > 0:
+                self._active_connections[ip] -= 1
+            if self._total_active > 0:
+                self._total_active -= 1
+
+    def _ban_ip(self, ip: str) -> None:
+        # Ban an IP for the configured duration.
+        self._banned_ips[ip] = time.time() + self.ban_duration_seconds
+        logger.warning(f"Banned IP {ip} for {self.ban_duration_seconds} seconds due to rate limiting")
+
+    def unban_ip(self, ip: str) -> bool:
+        # Manually unban an IP. Returns True if IP was banned.
+        with self._lock:
+            if ip in self._banned_ips:
+                del self._banned_ips[ip]
+                return True
+            return False
+
+    def get_stats(self) -> Dict[str, Any]:
+        # Get current rate limiter statistics.
+        with self._lock:
+            # Clean up expired bans
+            now = time.time()
+            expired_bans = [ip for ip, expiry in self._banned_ips.items() if now > expiry]
+            for ip in expired_bans:
+                del self._banned_ips[ip]
+
+            return {
+                "total_active_connections": self._total_active,
+                "max_total_connections": self.max_total_connections,
+                "banned_ips": list(self._banned_ips.keys()),
+                "unique_ips_connected": len(self._active_connections),
+                "max_connections_per_ip_per_minute": self.max_connections_per_ip_per_minute,
+                "max_concurrent_per_ip": self.max_concurrent_per_ip,
+                "ban_duration_seconds": self.ban_duration_seconds,
+            }
+
+
 class Server:
     # Main server class handling agent connections and commands.
 
-    def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
+    def __init__(
+        self,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
+        max_file_size: int = MAX_FILE_SIZE_BYTES
+    ) -> None:
         self.host = host
         self.port = port
+        self.max_file_size = max_file_size
         self.socket: Optional[socket.socket] = None
         self.running = False
         self.sessions: Dict[str, AgentSession] = {}
@@ -55,6 +182,7 @@ class Server:
         self.selected_agent_id: Optional[str] = None
         self._response_waiters: Dict[str, "queue.Queue[Dict[str, Any]]"] = {}
         self._response_lock = threading.Lock()
+        self._rate_limiter = RateLimiter()
 
     def start(self) -> None:
         listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -75,6 +203,18 @@ class Server:
         while self.running:
             try:
                 client_socket, address = self.socket.accept()
+                ip = address[0]
+
+                # Check rate limiting
+                allowed, reason = self._rate_limiter.try_accept(ip)
+                if not allowed:
+                    logger.warning(f"Connection rejected from {ip}: {reason}")
+                    try:
+                        client_socket.close()
+                    except OSError:
+                        pass
+                    continue
+
                 agent_id = str(uuid.uuid4())
                 logger.info(
                     f"New TCP connection from {address[0]}:{address[1]} "
@@ -142,6 +282,7 @@ class Server:
                 client_socket.close()
             except OSError:
                 pass
+            self._rate_limiter.release(address[0])
             with self.lock:
                 self.sessions.pop(agent_id, None)
                 if self.selected_agent_id == agent_id:
@@ -336,9 +477,9 @@ class Server:
             # Estimate decoded size before decoding to prevent memory exhaustion
             # base64 encoding increases size by ~33%, so decoded size is ~3/4 of encoded
             estimated_size = len(content_base64) * 3 // 4
-            if estimated_size > MAX_FILE_SIZE_BYTES:
+            if estimated_size > self.max_file_size:
                 logger.error(
-                    f"File too large: {estimated_size} bytes (max: {MAX_FILE_SIZE_BYTES}). "
+                    f"File too large: {estimated_size} bytes (max: {self.max_file_size}). "
                     f"Rejecting download from agent {agent_id}"
                 )
                 return False
@@ -404,9 +545,9 @@ class Server:
             logger.error(f"Cannot get file size: {e}")
             return False
 
-        if file_size > MAX_FILE_SIZE_BYTES:
+        if file_size > self.max_file_size:
             logger.error(
-                f"File too large: {file_size} bytes (max: {MAX_FILE_SIZE_BYTES}). "
+                f"File too large: {file_size} bytes (max: {self.max_file_size}). "
                 f"Rejecting upload to agent {agent_id}"
             )
             return False
@@ -479,8 +620,17 @@ class Server:
         print("  test                           Send test command to selected agent")
         print("  download <remote> <local>      Download file from agent")
         print("  upload <local> <remote>        Upload file to agent")
+        print("  configure <setting> <value>    Configure server settings")
+        print("  stats                          Show rate limiter statistics")
+        print("  unban <ip>                     Remove IP from rate limit ban")
         print("  exit                           Disconnect selected agent")
         print("  quit                           Shutdown server")
+        print("\nConfigurable settings:")
+        print("  max_file_size_in_bytes           Max file size for transfers")
+        print("  max_connections_per_ip_per_minute  Connection rate limit per IP")
+        print("  max_concurrent_connections_per_ip  Max concurrent connections per IP")
+        print("  max_total_connections            Max total concurrent connections")
+        print("  rate_limit_ban_seconds           Duration to ban IPs after rate limit")
         print()
 
     def _get_prompt(self) -> str:
@@ -561,6 +711,85 @@ class Server:
                     OutputFormatter.success(f"Uploaded {local_path} -> {remote_path}")
                 else:
                     OutputFormatter.error(f"Failed to upload {local_path}")
+            elif cmd == "configure":
+                args = arg.split(maxsplit=1)
+                if len(args) < 2:
+                    OutputFormatter.error("Usage: configure <setting> <value>")
+                    continue
+                setting, value_str = args[0], args[1]
+                if setting == "max_file_size_in_bytes":
+                    try:
+                        new_value = int(value_str)
+                        if new_value <= 0:
+                            OutputFormatter.error("max_file_size_in_bytes must be a positive integer")
+                            continue
+                        self.max_file_size = new_value
+                        OutputFormatter.success(f"Set max_file_size_in_bytes to {new_value}")
+                    except ValueError:
+                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                elif setting == "max_connections_per_ip_per_minute":
+                    try:
+                        new_value = int(value_str)
+                        if new_value <= 0:
+                            OutputFormatter.error("max_connections_per_ip_per_minute must be a positive integer")
+                            continue
+                        self._rate_limiter.max_connections_per_ip_per_minute = new_value
+                        OutputFormatter.success(f"Set max_connections_per_ip_per_minute to {new_value}")
+                    except ValueError:
+                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                elif setting == "max_concurrent_connections_per_ip":
+                    try:
+                        new_value = int(value_str)
+                        if new_value <= 0:
+                            OutputFormatter.error("max_concurrent_connections_per_ip must be a positive integer")
+                            continue
+                        self._rate_limiter.max_concurrent_per_ip = new_value
+                        OutputFormatter.success(f"Set max_concurrent_connections_per_ip to {new_value}")
+                    except ValueError:
+                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                elif setting == "max_total_connections":
+                    try:
+                        new_value = int(value_str)
+                        if new_value <= 0:
+                            OutputFormatter.error("max_total_connections must be a positive integer")
+                            continue
+                        self._rate_limiter.max_total_connections = new_value
+                        OutputFormatter.success(f"Set max_total_connections to {new_value}")
+                    except ValueError:
+                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                elif setting == "rate_limit_ban_seconds":
+                    try:
+                        new_value = int(value_str)
+                        if new_value < 0:
+                            OutputFormatter.error("rate_limit_ban_seconds must be a non-negative integer")
+                            continue
+                        self._rate_limiter.ban_duration_seconds = new_value
+                        OutputFormatter.success(f"Set rate_limit_ban_seconds to {new_value}")
+                    except ValueError:
+                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                else:
+                    OutputFormatter.error(f"Unknown setting: {setting}")
+            elif cmd == "stats":
+                stats = self._rate_limiter.get_stats()
+                print("\nRate Limiter Statistics:")
+                print(f"  Active connections: {stats['total_active_connections']}/{stats['max_total_connections']}")
+                print(f"  Unique IPs connected: {stats['unique_ips_connected']}")
+                print(f"  Banned IPs: {len(stats['banned_ips'])}")
+                if stats['banned_ips']:
+                    print(f"    {', '.join(stats['banned_ips'])}")
+                print(f"\nLimits:")
+                print(f"  Max connections per IP per minute: {stats['max_connections_per_ip_per_minute']}")
+                print(f"  Max concurrent per IP: {stats['max_concurrent_per_ip']}")
+                print(f"  Ban duration: {stats['ban_duration_seconds']} seconds")
+                print()
+            elif cmd == "unban":
+                if not arg:
+                    OutputFormatter.error("Usage: unban <ip>")
+                    continue
+                if self._rate_limiter.unban_ip(arg):
+                    OutputFormatter.success(f"Unbanned IP: {arg}")
+                else:
+                    OutputFormatter.warning(f"IP {arg} was not banned")
             elif cmd == "exit":
                 if self.selected_agent_id is None:
                     OutputFormatter.warning("No agent selected.")
