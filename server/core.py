@@ -62,7 +62,7 @@ class RateLimiter:
         self.max_concurrent_per_ip = max_concurrent_per_ip
         self.max_total_connections = max_total_connections
         self.ban_duration_seconds = ban_duration_seconds
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # Use RLock to allow nested calls like is_banned() from try_accept()
         # IP -> list of connection timestamps
         self._connection_history: Dict[str, List[float]] = defaultdict(list)
         # IP -> count of active connections
@@ -189,6 +189,7 @@ class Server:
         listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listen_sock.bind((self.host, self.port))
         listen_sock.listen()
+        listen_sock.settimeout(0.5)  # Allow accept() to periodically check self.running
         self.socket = listen_sock
         self.running = True
         self._accept_thread = threading.Thread(
@@ -203,37 +204,41 @@ class Server:
         while self.running:
             try:
                 client_socket, address = self.socket.accept()
-                ip = address[0]
-
-                # Check rate limiting
-                allowed, reason = self._rate_limiter.try_accept(ip)
-                if not allowed:
-                    logger.warning(f"Connection rejected from {ip}: {reason}")
-                    try:
-                        client_socket.close()
-                    except OSError:
-                        pass
-                    continue
-
-                agent_id = str(uuid.uuid4())
-                logger.info(
-                    f"New TCP connection from {address[0]}:{address[1]} "
-                    f"(agent_id={agent_id})"
-                )
-                client_socket.settimeout(SOCKET_TIMEOUT_SEC)
-                session = AgentSession(agent_id, address)
-                session.socket = client_socket
-                with self.lock:
-                    self.sessions[agent_id] = session
-                thread = threading.Thread(
-                    target=self._handle_agent,
-                    args=(client_socket, address, agent_id),
-                    name=f"agent-{agent_id[:8]}",
-                    daemon=True,
-                )
-                thread.start()
+            except socket.timeout:
+                # Timeout is expected - loop back to check self.running
+                continue
             except OSError:
                 break
+
+            ip = address[0]
+
+            # Check rate limiting
+            allowed, reason = self._rate_limiter.try_accept(ip)
+            if not allowed:
+                logger.warning(f"Connection rejected from {ip}: {reason}")
+                try:
+                    client_socket.close()
+                except OSError:
+                    pass
+                continue
+
+            agent_id = str(uuid.uuid4())
+            logger.info(
+                f"New TCP connection from {address[0]}:{address[1]} "
+                f"(agent_id={agent_id})"
+            )
+            client_socket.settimeout(SOCKET_TIMEOUT_SEC)
+            session = AgentSession(agent_id, address)
+            session.socket = client_socket
+            with self.lock:
+                self.sessions[agent_id] = session
+            thread = threading.Thread(
+                target=self._handle_agent,
+                args=(client_socket, address, agent_id),
+                name=f"agent-{agent_id[:8]}",
+                daemon=True,
+            )
+            thread.start()
 
     def _handle_agent(
         self,
