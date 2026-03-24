@@ -34,6 +34,28 @@ from common.crypto import Encryptor, CryptoError
 
 logger = logging.getLogger(__name__)
 
+# Global reference to current server instance for prompt restoration
+_current_server: Optional["Server"] = None
+
+
+class PromptRestoringHandler(logging.Handler):
+    # Custom handler that restores the prompt after emitting log records.
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            # Print the log message
+            if record.levelno >= logging.ERROR:
+                print(f"\r{msg}", file=sys.stderr)
+            else:
+                print(f"\r{msg}")
+            # Restore prompt if server is active
+            if _current_server is not None and _current_server.running:
+                prompt = _current_server._get_prompt()
+                print(prompt, end="", flush=True)
+        except Exception:
+            self.handleError(record)
+
 
 class OutputFormatter:
     # Handles formatted output for the server CLI.
@@ -557,8 +579,8 @@ class Server:
             selected = self.selected_agent_id
         if selected:
             short_id = selected[:8]
-            return f"rat[{short_id}]> "
-        return f"rat[{session_count}]> "
+            return f"biggusRatus[{short_id}]> "
+        return f"biggusRatus[{session_count}]> "
 
     def run_interactive(self) -> None:
         OutputFormatter.info("Server ready. Type 'help' for commands.")
@@ -708,19 +730,34 @@ Examples:
 
 
 def main() -> None:
+    global _current_server
     args = parse_args()
     log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+
+    # Configure logging with prompt-restoring handler
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    # Remove any existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Add our custom handler
+    handler = PromptRestoringHandler()
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    ))
+    root_logger.addHandler(handler)
+
     server = Server(host=args.host, port=args.port)
+    _current_server = server
     try:
         server.start()
         server.run_interactive()
     except KeyboardInterrupt:
         OutputFormatter.info("Interrupt received")
     finally:
+        _current_server = None
         server.stop()
 
 
