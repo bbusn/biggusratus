@@ -19,6 +19,7 @@ from common.constants import (
     READ_TIMEOUT_SEC,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
+    UPLOAD_ACTION,
 )
 from common.protocol import (
     build_command,
@@ -447,6 +448,94 @@ class Server:
             with self._response_lock:
                 self._response_waiters.pop(request_id, None)
 
+    def upload_to_agent(
+        self, agent_id: str, local_path: str, remote_path: str
+    ) -> bool:
+        # Upload a file from local system to an agent.
+        import base64
+        import os
+
+        with self.lock:
+            session = self.sessions.get(agent_id)
+            sock = session.socket if session else None
+            encryptor = session.encryptor if session else None
+        if sock is None:
+            logger.error(f"No such agent: {agent_id}")
+            return False
+
+        # Check if local file exists
+        if not os.path.exists(local_path):
+            logger.error(f"Local file not found: {local_path}")
+            return False
+
+        if not os.path.isfile(local_path):
+            logger.error(f"Not a file: {local_path}")
+            return False
+
+        try:
+            # Read and encode the file
+            with open(local_path, "rb") as f:
+                file_content = f.read()
+            file_size = len(file_content)
+            content_base64 = base64.b64encode(file_content).decode("utf-8")
+
+            logger.info(f"Uploading {local_path} ({file_size} bytes) to agent {agent_id}")
+
+            # Build and send upload command
+            cmd = build_command(UPLOAD_ACTION, {
+                "remote_path": remote_path,
+                "content": content_base64
+            })
+            request_id = str(cmd["id"])
+            waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+            with self._response_lock:
+                self._response_waiters[request_id] = waiter
+
+            # Encrypt and send
+            plaintext = encode_message(cmd)
+            if encryptor is not None:
+                ciphertext = encryptor.encrypt(plaintext)
+            else:
+                ciphertext = plaintext
+            send_frame(sock, ciphertext)
+
+            # Wait for response with extended timeout for large files
+            response = waiter.get(timeout=120.0)
+
+            with self.lock:
+                session = self.sessions.get(agent_id)
+                if session:
+                    session.update_last_seen()
+
+            # Parse response
+            data = response.get("data", {})
+            payload = data.get("payload", "{}")
+            try:
+                result = json.loads(payload)
+            except json.JSONDecodeError:
+                logger.error("Invalid response payload")
+                return False
+
+            if not result.get("success", False):
+                logger.error(f"Upload failed: {result.get('error', 'Unknown error')}")
+                return False
+
+            logger.info(
+                f"Uploaded {local_path} -> {remote_path} ({file_size} bytes) "
+                f"to {agent_id}"
+            )
+            return True
+
+        except queue.Empty:
+            logger.error(f"Timed out waiting for upload response from {agent_id}")
+            return False
+        except Exception as e:
+            logger.error(f"Upload error: {e}")
+            return False
+        finally:
+            with self._response_lock:
+                self._response_waiters.pop(request_id, None)
+
     @staticmethod
     def _print_help() -> None:
         # Display available server commands.
@@ -456,6 +545,7 @@ class Server:
         print("  select <agent_id>              Select agent for interaction")
         print("  test                           Send test command to selected agent")
         print("  download <remote> <local>      Download file from agent")
+        print("  upload <local> <remote>        Upload file to agent")
         print("  exit                           Disconnect selected agent")
         print("  quit                           Shutdown server")
         print()
@@ -523,6 +613,23 @@ class Server:
                     OutputFormatter.success(f"Downloaded {remote_path} -> {local_path}")
                 else:
                     OutputFormatter.error(f"Failed to download {remote_path}")
+            elif cmd == "upload":
+                target = self.selected_agent_id
+                if target is None:
+                    OutputFormatter.error("Select an agent first: select <agent_id>")
+                    continue
+                # Parse arguments: upload <local_path> <remote_path>
+                args = arg.split(maxsplit=1)
+                if len(args) < 2:
+                    OutputFormatter.error("Usage: upload <local_path> <remote_path>")
+                    continue
+                local_path, remote_path = args[0], args[1]
+                OutputFormatter.info(f"Uploading {local_path} -> {remote_path}...")
+                success = self.upload_to_agent(target, local_path, remote_path)
+                if success:
+                    OutputFormatter.success(f"Uploaded {local_path} -> {remote_path}")
+                else:
+                    OutputFormatter.error(f"Failed to upload {local_path}")
             elif cmd == "exit":
                 if self.selected_agent_id is None:
                     OutputFormatter.warning("No agent selected.")

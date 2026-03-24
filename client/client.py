@@ -20,9 +20,11 @@ from common.constants import (
     RETRY_DELAY_MAX,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
+    UPLOAD_ACTION,
 )
 from client.commands.help import HelpCommand
 from client.commands.download import DownloadCommand
+from client.commands.upload import UploadCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -52,6 +54,7 @@ class Client:
         self._commands = {
             HELP_ACTION: HelpCommand(),
             DOWNLOAD_ACTION: DownloadCommand(),
+            UPLOAD_ACTION: UploadCommand(),
         }
         self._retry_count = 0
         self._shutdown = False
