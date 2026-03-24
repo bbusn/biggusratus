@@ -51,6 +51,7 @@ class DownloadCommand(BaseCommand):
             # Read file in chunks for memory efficiency with large files
             content_chunks = []
             bytes_read = 0
+            progress_percent = 0
             with open(remote_path, "rb") as f:
                 while True:
                     chunk = f.read(CHUNK_SIZE)
@@ -58,6 +59,15 @@ class DownloadCommand(BaseCommand):
                         break
                     content_chunks.append(chunk)
                     bytes_read += len(chunk)
+                    # Log progress at 25% intervals
+                    if file_size > 0:
+                        new_percent = int((bytes_read / file_size) * 100)
+                        if new_percent >= progress_percent + 25:
+                            progress_percent = (new_percent // 25) * 25
+                            logger.info(
+                                f"Download progress: {progress_percent}% "
+                                f"({bytes_read}/{file_size} bytes)"
+                            )
 
             # Combine and encode
             content = b"".join(content_chunks)

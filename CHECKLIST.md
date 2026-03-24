@@ -18,13 +18,13 @@
   - [x] Returns formatted command list
   - [x] Unit tests written
 
-- [ ] `download` - Retrieve file from victim to server
+- [x] `download` - Retrieve file from victim to server
 
-  - [ ] Command class implemented
-  - [ ] Handles binary files
-  - [ ] Error handling for missing files
-  - [ ] Progress reporting
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Handles binary files
+  - [x] Error handling for missing files
+  - [x] Progress reporting
+  - [x] Unit tests written
 
 - [ ] `upload` - Send file from server to victim
 
