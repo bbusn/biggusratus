@@ -834,6 +834,9 @@ class Server:
                 pass
             self.socket = None
         if self._accept_thread is not None:
-            self._accept_thread.join(timeout=2.0)
+            try:
+                self._accept_thread.join(timeout=2.0)
+            except KeyboardInterrupt:
+                pass  # User pressed Ctrl+C again, just continue cleanup
             self._accept_thread = None
         logger.info("Server stopped")
