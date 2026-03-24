@@ -1,4 +1,4 @@
-# JSON message helpers aligned with README communication format (pre-encryption).
+# JSON message helpers aligned with README communication format.
 
 import json
 import time
@@ -6,6 +6,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from common.constants import HANDSHAKE_ACTION, PROTOCOL_VERSION
+from common.crypto import Encryptor, key_to_string
 
 
 def encode_message(message: Dict[str, Any]) -> bytes:
@@ -31,8 +32,13 @@ def build_handshake_command() -> Dict[str, Any]:
     }
 
 
-def build_handshake_response(request_id: str) -> Dict[str, Any]:
-    # Server → client handshake acknowledgement.
+def build_handshake_response(
+    request_id: str, encryptor: Optional[Encryptor] = None
+) -> Dict[str, Any]:
+    # Server → client handshake acknowledgement with encryption key.
+    key_payload = "{}"
+    if encryptor is not None:
+        key_payload = json.dumps({"encryption_key": key_to_string(encryptor.key)})
     return {
         "version": PROTOCOL_VERSION,
         "type": "response",
@@ -43,11 +49,24 @@ def build_handshake_response(request_id: str) -> Dict[str, Any]:
         "data": {
             "encoding": "utf-8",
             "content_type": "application/json",
-            "payload": "{}",
+            "payload": key_payload,
         },
         "message": "connected",
         "timestamp": None,
     }
+
+
+def extract_encryption_key_from_handshake(message: Dict[str, Any]) -> Optional[str]:
+    # Extract encryption key from handshake response data payload.
+    data = message.get("data", {})
+    if not data:
+        return None
+    payload = data.get("payload", "{}")
+    try:
+        parsed = json.loads(payload)
+        return parsed.get("encryption_key")
+    except json.JSONDecodeError:
+        return None
 
 
 def build_command(

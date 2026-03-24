@@ -27,8 +27,10 @@ from common.protocol import (
     build_success_response,
     decode_message,
     encode_message,
+    extract_encryption_key_from_handshake,
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
+from common.crypto import Encryptor, key_from_string, CryptoError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ class Client:
         }
         self._retry_count = 0
         self._shutdown = False
+        self._encryptor: Optional[Encryptor] = None
 
     @staticmethod
     def _calculate_backoff(attempt: int) -> float:
@@ -98,6 +101,13 @@ class Client:
             raw = recv_frame(self.socket)
         response = decode_message(raw)
         self._validate_handshake_response(response, command["id"])
+        # Extract and set up encryption key
+        key_string = extract_encryption_key_from_handshake(response)
+        if key_string:
+            self._encryptor = Encryptor(key=key_from_string(key_string))
+            logger.info("Encryption enabled")
+        else:
+            logger.warning("No encryption key received, communication unencrypted")
         logger.info("Handshake completed with server")
 
     @staticmethod
@@ -112,6 +122,34 @@ class Client:
             raise ValueError("Handshake response id mismatch")
         if message.get("status") != "success":
             raise ValueError("Handshake rejected by server")
+
+    def _encrypt_data(self, data: bytes) -> bytes:
+        # Encrypt data if encryption is available.
+        if self._encryptor is not None:
+            return self._encryptor.encrypt(data)
+        return data
+
+    def _decrypt_data(self, data: bytes) -> bytes:
+        # Decrypt data if encryption is available.
+        if self._encryptor is not None:
+            return self._encryptor.decrypt(data)
+        return data
+
+    def _send_encrypted_frame(self, message: Dict[str, Any]) -> None:
+        # Send an encrypted framed message.
+        if self.socket is None:
+            raise ConnectionError("Not connected")
+        plaintext = encode_message(message)
+        ciphertext = self._encrypt_data(plaintext)
+        send_frame(self.socket, ciphertext)
+
+    def _recv_encrypted_frame(self) -> Dict[str, Any]:
+        # Receive and decrypt a framed message.
+        if self.socket is None:
+            raise ConnectionError("Not connected")
+        ciphertext = recv_frame(self.socket)
+        plaintext = self._decrypt_data(ciphertext)
+        return decode_message(plaintext)
 
     def _handle_incoming_message(self, message: Dict[str, Any]) -> None:
         if message.get("type") == "response":
@@ -146,7 +184,7 @@ class Client:
                 logger.warning(f"Unknown command action: {action}")
                 return
             with self._send_lock:
-                send_frame(self.socket, encode_message(reply))
+                self._send_encrypted_frame(reply)
             return
         logger.warning(f"Unhandled message: {message}")
 
@@ -156,15 +194,17 @@ class Client:
         try:
             while self.connected:
                 try:
-                    raw = recv_frame(self.socket)
-                    message = decode_message(raw)
+                    message = self._recv_encrypted_frame()
                     self._handle_incoming_message(message)
                 except socket.timeout:
                     if self.connected:
                         logger.debug("Socket timeout, continuing receive loop")
                         continue
                     break
-        except (ConnectionError, OSError, ProtocolError, json.JSONDecodeError) as exc:
+                except CryptoError as exc:
+                    logger.error(f"Decryption error: {exc}")
+                    raise
+        except (ConnectionError, OSError, ProtocolError, json.JSONDecodeError, CryptoError) as exc:
             logger.warning(f"Receive loop ended: {exc}")
         finally:
             self.connected = False
@@ -180,7 +220,7 @@ class Client:
             self._response_waiters[request_id] = waiter
         try:
             with self._send_lock:
-                send_frame(self.socket, encode_message(cmd))
+                self._send_encrypted_frame(cmd)
             response = waiter.get(timeout=30.0)
             logger.info(f"Test round-trip OK: {response}")
         except queue.Empty:
@@ -224,6 +264,7 @@ class Client:
 
     def disconnect(self) -> None:
         self.connected = False
+        self._encryptor = None
         if self.socket:
             try:
                 self.socket.shutdown(socket.SHUT_RDWR)
@@ -306,7 +347,7 @@ def main() -> None:
             )
             client.disconnect()
             time.sleep(backoff)
-        except (ProtocolError, ValueError, json.JSONDecodeError) as exc:
+        except (ProtocolError, ValueError, json.JSONDecodeError, CryptoError) as exc:
             if client._shutdown:
                 break
             attempt = client._increment_retry()

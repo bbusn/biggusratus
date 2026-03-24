@@ -27,6 +27,7 @@ from common.protocol import (
     encode_message,
 )
 from common.tcp import ProtocolError, recv_frame, send_frame
+from common.crypto import Encryptor, CryptoError
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ class AgentSession:
         self.connected_at = time.time()
         self.last_seen = time.time()
         self.reconnect_count = 0
+        self.encryptor: Optional[Encryptor] = None
 
     def update_last_seen(self) -> None:
         # Update the last seen timestamp.
@@ -118,6 +120,18 @@ class AgentSession:
     def idle_time(self) -> float:
         # Return idle time in seconds since last activity.
         return time.time() - self.last_seen
+
+    def encrypt_data(self, data: bytes) -> bytes:
+        # Encrypt data if encryption is available.
+        if self.encryptor is not None:
+            return self.encryptor.encrypt(data)
+        return data
+
+    def decrypt_data(self, data: bytes) -> bytes:
+        # Decrypt data if encryption is available.
+        if self.encryptor is not None:
+            return self.encryptor.decrypt(data)
+        return data
 
 
 class Server:
@@ -179,10 +193,11 @@ class Server:
         agent_id: str,
     ) -> None:
         try:
-            self._perform_handshake(client_socket)
+            encryptor = self._perform_handshake(client_socket)
             with self.lock:
                 session = self.sessions.get(agent_id)
                 if session:
+                    session.encryptor = encryptor
                     session.update_last_seen()
             logger.info(
                 f"Handshake complete for agent {agent_id} "
@@ -199,6 +214,7 @@ class Server:
             ProtocolError,
             ValueError,
             json.JSONDecodeError,
+            CryptoError,
         ) as exc:
             logger.warning(
                 f"Agent {agent_id} ({address[0]}:{address[1]}) disconnected: {exc}"
@@ -219,13 +235,16 @@ class Server:
                     self.selected_agent_id = None
             logger.info(f"Agent session closed: {agent_id}")
 
-    def _perform_handshake(self, client_socket: socket.socket) -> None:
+    def _perform_handshake(self, client_socket: socket.socket) -> AgentSession:
         raw = recv_frame(client_socket)
         message = decode_message(raw)
         self._validate_handshake_request(message)
         request_id = str(message.get("id", ""))
-        response = build_handshake_response(request_id)
+        # Create encryptor and send key in handshake response
+        encryptor = Encryptor()
+        response = build_handshake_response(request_id, encryptor=encryptor)
         send_frame(client_socket, encode_message(response))
+        return encryptor
 
     @staticmethod
     def _validate_handshake_request(message: Dict[str, Any]) -> None:
@@ -239,6 +258,9 @@ class Server:
     def _handle_agent_incoming(
         self, client_socket: socket.socket, agent_id: str, message: Dict[str, Any]
     ) -> None:
+        with self.lock:
+            session = self.sessions.get(agent_id)
+            encryptor = session.encryptor if session else None
         if message.get("type") == "response":
             rid = str(message.get("id", ""))
             with self._response_lock:
@@ -254,15 +276,28 @@ class Server:
             reply = build_success_response(
                 req_id, TEST_ACTION, payload='{"ok":true}', message="test-ok"
             )
-            send_frame(client_socket, encode_message(reply))
+            # Encrypt and send
+            plaintext = encode_message(reply)
+            if encryptor is not None:
+                ciphertext = encryptor.encrypt(plaintext)
+            else:
+                ciphertext = plaintext
+            send_frame(client_socket, ciphertext)
             return
         logger.warning(f"Unhandled message from agent {agent_id}: {message}")
 
     def _agent_message_loop(self, client_socket: socket.socket, agent_id: str) -> None:
         while self.running:
             try:
-                raw = recv_frame(client_socket)
-                message = decode_message(raw)
+                ciphertext = recv_frame(client_socket)
+                # Decrypt message
+                with self.lock:
+                    session = self.sessions.get(agent_id)
+                    if session and session.encryptor:
+                        plaintext = session.decrypt_data(ciphertext)
+                    else:
+                        plaintext = ciphertext
+                message = decode_message(plaintext)
                 with self.lock:
                     session = self.sessions.get(agent_id)
                     if session:
@@ -277,11 +312,15 @@ class Server:
                         )
                         raise
                 continue
+            except CryptoError as exc:
+                logger.error(f"Agent {agent_id} decryption error: {exc}")
+                raise
 
     def send_test_to_agent(self, agent_id: str) -> None:
         with self.lock:
             session = self.sessions.get(agent_id)
             sock = session.socket if session else None
+            encryptor = session.encryptor if session else None
         if sock is None:
             logger.error(f"No such agent: {agent_id}")
             return
@@ -291,7 +330,13 @@ class Server:
         with self._response_lock:
             self._response_waiters[request_id] = waiter
         try:
-            send_frame(sock, encode_message(cmd))
+            # Encrypt and send
+            plaintext = encode_message(cmd)
+            if encryptor is not None:
+                ciphertext = encryptor.encrypt(plaintext)
+            else:
+                ciphertext = plaintext
+            send_frame(sock, ciphertext)
             response = waiter.get(timeout=30.0)
             with self.lock:
                 session = self.sessions.get(agent_id)

@@ -5,7 +5,7 @@
 ### Core
 
 - [x] TCP socket connection established
-- [ ] Encryption implemented (Fernet)
+- [x] Encryption implemented (Fernet)
 - [x] Automatic reconnection logic
 - [x] Message serialization (JSON)
 - [x] Connection error handling
