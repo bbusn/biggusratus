@@ -4,19 +4,19 @@
 
 ### Core
 
-- [ ] TCP socket connection established
-- [ ] Encryption implemented (Fernet)
-- [ ] Automatic reconnection logic
-- [ ] Message serialization (JSON)
-- [ ] Connection error handling
+- [x] TCP socket connection established
+- [x] Encryption implemented (Fernet)
+- [x] Automatic reconnection logic
+- [x] Message serialization (JSON)
+- [x] Connection error handling
 
 ### Commands
 
-- [ ] `help` - Display available commands
+- [x] `help` - Display available commands
 
-  - [ ] Command class implemented
-  - [ ] Returns formatted command list
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Returns formatted command list
+  - [x] Unit tests written
 
 - [ ] `download` - Retrieve file from victim to server
 
@@ -109,7 +109,7 @@
 
 ### OS Support
 
-- [ ] OS detection implemented
+- [x] OS detection implemented
 - [ ] All commands work on Windows
 - [ ] All commands work on Linux
 - [ ] Platform-specific code paths
@@ -119,34 +119,34 @@
 
 ### Core
 
-- [ ] TCP listener implemented
-- [ ] Configurable port
-- [ ] Multi-agent support (threading/asyncio)
-- [ ] Graceful shutdown
-- [ ] Command-line interface
-- [ ] Agent list display
-- [ ] Agent selection
-- [ ] Command prompt
-- [ ] Output formatting
-- [ ] Accept new connections
-- [ ] Handle disconnections
-- [ ] Reconnection support
-- [ ] Connection timeout handling
+- [x] TCP listener implemented
+- [x] Configurable port
+- [x] Multi-agent support (threading/asyncio)
+- [x] Graceful shutdown
+- [x] Command-line interface
+- [x] Agent list display
+- [x] Agent selection
+- [x] Command prompt
+- [x] Output formatting
+- [x] Accept new connections
+- [x] Handle disconnections
+- [x] Reconnection support
+- [x] Connection timeout handling
 
 ### Sessions
 
-- [ ] Agent session tracking
-- [ ] Unique session IDs
-- [ ] Connection timestamp
-- [ ] Last seen tracking
-- [ ] Disconnect detection
-- [ ] Session cleanup
+- [x] Agent session tracking
+- [x] Unique session IDs
+- [x] Connection timestamp
+- [x] Last seen tracking
+- [x] Disconnect detection
+- [x] Session cleanup
 
 ### Commands
 
-- [ ] `list` - Show connected agents
-- [ ] `select <id>` - Select agent
-- [ ] `exit` - Disconnect agent
-- [ ] `quit` - Shutdown server
-- [ ] `help` - Display commands
-- [ ] Error handling for invalid commands
+- [x] `list` - Show connected agents
+- [x] `select <id>` - Select agent
+- [x] `exit` - Disconnect agent
+- [x] `quit` - Shutdown server
+- [x] `help` - Display commands
+- [x] Error handling for invalid commands

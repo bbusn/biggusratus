@@ -156,7 +156,7 @@ def process_command(
     params: Dict[str, Any],
     timeout: Optional[float] = None
 ) -> Dict[str, Any]:
-    """Process a command and return the result."""
+    # Process a command and return the result.
     pass
 ```
 
@@ -174,7 +174,7 @@ Use parametrize for multiple test cases:
     ("linux", "/bin/bash"),
 ])
 def test_shell_command(self, os_type, expected):
-    """Test shell command selection."""
+    # Test shell command selection.
     result = get_shell_command(os_type)
     assert result == expected
 ```
