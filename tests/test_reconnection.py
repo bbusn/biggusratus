@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from client.client import Client
+from client.core import Client
 from common.constants import (
     CONNECT_TIMEOUT_SEC,
     MAX_RETRIES,
@@ -12,7 +12,8 @@ from common.constants import (
     RETRY_DELAY,
     RETRY_DELAY_MAX,
 )
-from server.server import AgentSession, Server
+from server.core import Server
+from server.session import AgentSession
 
 
 class TestClientReconnection:
