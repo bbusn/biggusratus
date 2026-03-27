@@ -1,5 +1,6 @@
 import argparse
 import logging
+import select
 import sys
 from typing import Optional
 
@@ -17,10 +18,11 @@ class PromptRestoringHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
+            # Clear the current line and print the message
             if record.levelno >= logging.ERROR:
-                print(f"\r{msg}", file=sys.stderr)
+                print(f"\r\033[K{msg}", file=sys.stderr)
             else:
-                print(f"\r{msg}")
+                print(f"\r\033[K{msg}")
             if _current_server is not None and _current_server.running:
                 prompt = _current_server._get_prompt()
                 print(prompt, end="", flush=True)
@@ -88,7 +90,10 @@ def main() -> None:
         OutputFormatter.info("Interrupt received")
     finally:
         _current_server = None
-        server.stop()
+        try:
+            server.stop()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

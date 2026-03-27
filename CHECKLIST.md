@@ -42,13 +42,13 @@
   - [ ] Command output capture
   - [ ] Unit tests written
 
-- [ ] `ipconfig` - Get network configuration
+- [x] `ipconfig` - Get network configuration
 
-  - [ ] Command class implemented
-  - [ ] Windows implementation
-  - [ ] Linux implementation
-  - [ ] Returns all interfaces
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Windows implementation
+  - [x] Linux implementation
+  - [x] Returns all interfaces
+  - [x] Unit tests written
 
 - [ ] `screenshot` - Capture screen
 

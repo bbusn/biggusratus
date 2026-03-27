@@ -5,7 +5,9 @@ import json
 import logging
 import os
 import queue
+import select
 import socket
+import sys
 import threading
 import time
 import uuid
@@ -701,8 +703,22 @@ class Server:
         while self.running:
             try:
                 prompt = self._get_prompt()
-                line = input(prompt).strip()
-            except EOFError:
+                print(prompt, end="", flush=True)
+                
+                # Use select to check if input is available (non-blocking)
+                while self.running:
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        break
+                
+                if not self.running:
+                    break
+                    
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                line = line.strip()
+            except (EOFError, KeyboardInterrupt):
+                print()  # Move to new line after ^C
                 break
             if not line:
                 continue
@@ -866,15 +882,18 @@ class Server:
 
     def stop(self) -> None:
         self.running = False
-        with self.lock:
-            for session in list(self.sessions.values()):
-                if session.socket:
-                    try:
-                        session.socket.close()
-                    except OSError:
-                        pass
-            self.sessions.clear()
-            self.selected_agent_id = None
+        try:
+            with self.lock:
+                for session in list(self.sessions.values()):
+                    if session.socket:
+                        try:
+                            session.socket.close()
+                        except OSError:
+                            pass
+                self.sessions.clear()
+                self.selected_agent_id = None
+        except KeyboardInterrupt:
+            pass
         if self.socket:
             try:
                 self.socket.close()
@@ -885,6 +904,6 @@ class Server:
             try:
                 self._accept_thread.join(timeout=2.0)
             except KeyboardInterrupt:
-                pass  # User pressed Ctrl+C again, just continue cleanup
+                pass
             self._accept_thread = None
         logger.info("Server stopped")
