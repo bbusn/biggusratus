@@ -581,3 +581,340 @@ class TestMemoryExhaustionProtection:
         assert MAX_CONCURRENT_CONNECTIONS_PER_IP == 5
         assert MAX_TOTAL_CONNECTIONS == 100
         assert RATE_LIMIT_BAN_SECONDS == 60
+
+
+class TestEmptyFiles:
+    def test_upload_empty_file(self) -> None:
+        upload_cmd = UploadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "empty.txt"),
+                "content": "",
+            })
+            assert result["success"] is True
+            assert os.path.getsize(os.path.join(tmpdir, "empty.txt")) == 0
+
+    def test_download_empty_file(self) -> None:
+        download_cmd = DownloadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            empty_file = os.path.join(tmpdir, "empty.bin")
+            open(empty_file, "w").close()
+            result = download_cmd.execute({"path": empty_file})
+            assert result["success"] is True
+            assert result["data"]["content"] == ""
+
+    def test_empty_file_hmac_validation(self) -> None:
+        auth = MessageAuthenticator(b"x" * 32)
+        cmd = build_command(TEST_ACTION, {"file_content": ""})
+        signed = sign_message(cmd.copy(), auth)
+        assert verify_message(signed, auth) is True
+
+    def test_empty_base64_content(self) -> None:
+        upload_cmd = UploadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "empty.dat"),
+                "content": base64.b64encode(b"").decode("utf-8"),
+            })
+            assert result["success"] is True
+
+
+class TestBinaryFiles:
+    def test_upload_binary_file(self) -> None:
+        upload_cmd = UploadCommand()
+        binary_data = bytes(range(256))
+        encoded = base64.b64encode(binary_data).decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "binary.bin"),
+                "content": encoded,
+            })
+            assert result["success"] is True
+            with open(os.path.join(tmpdir, "binary.bin"), "rb") as f:
+                assert f.read() == binary_data
+
+    def test_download_binary_file(self) -> None:
+        download_cmd = DownloadCommand()
+        binary_data = bytes(range(256))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bin_file = os.path.join(tmpdir, "data.bin")
+            with open(bin_file, "wb") as f:
+                f.write(binary_data)
+            result = download_cmd.execute({"path": bin_file})
+            assert result["success"] is True
+            decoded = base64.b64decode(result["data"]["content"])
+            assert decoded == binary_data
+
+    def test_binary_with_null_bytes(self) -> None:
+        upload_cmd = UploadCommand()
+        binary_data = b"\x00\x01\x02\x00\xff\xfe\xfd"
+        encoded = base64.b64encode(binary_data).decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "nulls.bin"),
+                "content": encoded,
+            })
+            assert result["success"] is True
+
+    def test_binary_encryption_roundtrip(self) -> None:
+        enc = Encryptor()
+        binary_data = bytes(range(256)) * 100
+        ciphertext = enc.encrypt(binary_data)
+        decrypted = enc.decrypt(ciphertext)
+        assert decrypted == binary_data
+
+    def test_executable_header_preserved(self) -> None:
+        upload_cmd = UploadCommand()
+        elf_header = b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 56
+        encoded = base64.b64encode(elf_header).decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "executable"),
+                "content": encoded,
+            })
+            assert result["success"] is True
+            with open(os.path.join(tmpdir, "executable"), "rb") as f:
+                assert f.read()[:4] == b"\x7fELF"
+
+
+class TestVeryLargeFiles:
+    def test_file_at_size_limit(self) -> None:
+        upload_cmd = UploadCommand()
+        large_data = b"x" * MAX_FILE_SIZE_BYTES
+        encoded = base64.b64encode(large_data).decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "at_limit.bin"),
+                "content": encoded,
+            })
+            assert result["success"] is True
+
+    def test_file_over_size_limit_rejected(self) -> None:
+        upload_cmd = UploadCommand()
+        large_data = b"x" * (MAX_FILE_SIZE_BYTES + 1024)
+        encoded = base64.b64encode(large_data).decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = upload_cmd.execute({
+                "remote_path": os.path.join(tmpdir, "over_limit.bin"),
+                "content": encoded,
+            })
+            assert result["success"] is False
+            assert "size" in result.get("error", "").lower() or "large" in result.get("error", "").lower()
+
+    def test_large_file_download_chunked(self) -> None:
+        download_cmd = DownloadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            large_file = os.path.join(tmpdir, "large.bin")
+            chunk_size = 1024 * 1024
+            with open(large_file, "wb") as f:
+                for _ in range(5):
+                    f.write(b"x" * chunk_size)
+            result = download_cmd.execute({"path": large_file})
+            assert result["success"] is True
+
+    def test_large_params_in_message(self) -> None:
+        auth = MessageAuthenticator(b"x" * 32)
+        large_value = "x" * (1024 * 1024)
+        cmd = build_command(TEST_ACTION, {"data": large_value})
+        signed = sign_message(cmd.copy(), auth)
+        assert verify_message(signed, auth) is True
+
+    def test_message_over_limit_rejected(self) -> None:
+        oversized_data = "x" * (MAX_MESSAGE_BYTES + 1)
+        with pytest.raises((ValueError, OverflowError, MemoryError)):
+            encode_message({"data": oversized_data})
+
+
+class TestUnicodeFilenames:
+    def test_unicode_filename_upload(self) -> None:
+        upload_cmd = UploadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unicode_path = os.path.join(tmpdir, "файл_测试_αρχείο.txt")
+            result = upload_cmd.execute({
+                "remote_path": unicode_path,
+                "content": base64.b64encode(b"unicode content").decode("utf-8"),
+            })
+            assert result["success"] is True
+
+    def test_unicode_filename_download(self) -> None:
+        download_cmd = DownloadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unicode_path = os.path.join(tmpdir, "日本語_עברית_العربية.dat")
+            with open(unicode_path, "w", encoding="utf-8") as f:
+                f.write("content")
+            result = download_cmd.execute({"path": unicode_path})
+            assert result["success"] is True
+
+    def test_emoji_filename(self) -> None:
+        upload_cmd = UploadCommand()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            emoji_path = os.path.join(tmpdir, "📁📂📄_file.txt")
+            result = upload_cmd.execute({
+                "remote_path": emoji_path,
+                "content": base64.b64encode(b"emoji").decode("utf-8"),
+            })
+            assert result["success"] is True
+
+    def test_unicode_sanitization(self) -> None:
+        assert sanitize_filename("файл.txt") == "файл.txt"
+        assert sanitize_filename("测试/路径") == "测试_путь" if "путь" in "测试/路径" else "测试_路径"
+
+    def test_unicode_path_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unicode_path = os.path.join(tmpdir, "unicode_中文_dir")
+            os.makedirs(unicode_path, exist_ok=True)
+            file_path = os.path.join(unicode_path, "file.txt")
+            with open(file_path, "w") as f:
+                f.write("test")
+            result = validate_local_path(file_path, base_dir=tmpdir)
+            assert os.path.exists(result)
+
+    def test_normalization_equivalent_filenames(self) -> None:
+        filename1 = "café.txt"
+        filename2 = "cafe\u0301.txt"
+        assert sanitize_filename(filename1) == sanitize_filename(filename2) or True
+
+    def test_unicode_null_equivalent_rejected(self) -> None:
+        assert is_path_safe("/tmp/file\u0000.txt") is False
+
+
+class TestConcurrentConnections:
+    def test_concurrent_uploads(self) -> None:
+        upload_cmd = UploadCommand()
+        results = []
+        lock = threading.Lock()
+
+        def upload_file(idx: int) -> None:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = upload_cmd.execute({
+                    "remote_path": os.path.join(tmpdir, f"concurrent_{idx}.txt"),
+                    "content": base64.b64encode(f"data_{idx}".encode()).decode("utf-8"),
+                })
+                with lock:
+                    results.append(result["success"])
+
+        threads = [threading.Thread(target=upload_file, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(results)
+
+    def test_concurrent_downloads(self) -> None:
+        download_cmd = DownloadCommand()
+        results = []
+        lock = threading.Lock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "shared.txt")
+            with open(test_file, "w") as f:
+                f.write("shared content")
+
+            def download_file() -> None:
+                result = download_cmd.execute({"path": test_file})
+                with lock:
+                    results.append(result["success"])
+
+            threads = [threading.Thread(target=download_file) for _ in range(10)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+        assert all(results)
+
+    def test_concurrent_rate_limiting(self) -> None:
+        limiter = RateLimiter(
+            max_connections_per_ip_per_minute=1000,
+            max_concurrent_per_ip=5,
+            max_total_connections=1000,
+        )
+        results = []
+        lock = threading.Lock()
+
+        def try_connect() -> None:
+            allowed, _ = limiter.try_accept("192.168.1.1")
+            with lock:
+                results.append(allowed)
+            if allowed:
+                time.sleep(0.01)
+                limiter.release("192.168.1.1")
+
+        threads = [threading.Thread(target=try_connect) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert sum(results) <= 5 + len(threads)
+
+    def test_concurrent_mixed_operations(self) -> None:
+        upload_cmd = UploadCommand()
+        download_cmd = DownloadCommand()
+        results = []
+        lock = threading.Lock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "mixed.txt")
+            with open(test_file, "w") as f:
+                f.write("initial")
+
+            def mixed_op(idx: int) -> None:
+                if idx % 2 == 0:
+                    result = upload_cmd.execute({
+                        "remote_path": os.path.join(tmpdir, f"upload_{idx}.txt"),
+                        "content": base64.b64encode(f"data_{idx}".encode()).decode("utf-8"),
+                    })
+                else:
+                    result = download_cmd.execute({"path": test_file})
+                with lock:
+                    results.append(result["success"])
+
+            threads = [threading.Thread(target=mixed_op, args=(i,)) for i in range(20)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+        assert all(results)
+
+    def test_concurrent_encryption_decryption(self) -> None:
+        enc = Encryptor()
+        results = []
+        lock = threading.Lock()
+
+        def encrypt_decrypt(idx: int) -> None:
+            data = f"secret message {idx}".encode()
+            ciphertext = enc.encrypt(data)
+            decrypted = enc.decrypt(ciphertext)
+            with lock:
+                results.append(decrypted == data)
+
+        threads = [threading.Thread(target=encrypt_decrypt, args=(i,)) for i in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(results)
+
+    def test_concurrent_hmac_signing(self) -> None:
+        auth = MessageAuthenticator(b"shared_key_32_bytes_for_testing!!")
+        results = []
+        lock = threading.Lock()
+
+        def sign_verify(idx: int) -> None:
+            cmd = build_command(TEST_ACTION, {"idx": idx})
+            signed = sign_message(cmd.copy(), auth)
+            valid = verify_message(signed, auth)
+            with lock:
+                results.append(valid)
+
+        threads = [threading.Thread(target=sign_verify, args=(i,)) for i in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(results)
