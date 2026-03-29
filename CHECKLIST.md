@@ -99,13 +99,13 @@
   - [x] Returns file list with paths
   - [x] Unit tests written
 
-- [ ] `hashdump` - Extract password hashes
+- [x] `hashdump` - Extract password hashes
 
-  - [ ] Command class implemented
-  - [ ] Windows SAM extraction
-  - [ ] Linux shadow extraction
-  - [ ] Privilege check
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Windows SAM extraction
+  - [x] Linux shadow extraction
+  - [x] Privilege check
+  - [x] Unit tests written
 
 ### OS Support
 
