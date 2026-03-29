@@ -67,8 +67,17 @@ def main() -> None:
                     break
                 attempt = client._increment_retry()
                 if attempt > MAX_RETRIES:
-                    logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
-                    break
+                    logger.warning(
+                        f"Max retries ({MAX_RETRIES}) exceeded. Waiting 5 minutes before retry cycle..."
+                    )
+                    client._reset_retry_count()
+                    client.disconnect()
+                    try:
+                        time.sleep(300)
+                    except KeyboardInterrupt:
+                        client.shutdown()
+                        break
+                    continue
                 backoff = client._calculate_backoff(attempt - 1)
                 logger.warning(
                     f"Connection lost or failed (attempt {attempt}/{MAX_RETRIES}): {exc}. "
@@ -85,8 +94,17 @@ def main() -> None:
                     break
                 attempt = client._increment_retry()
                 if attempt > MAX_RETRIES:
-                    logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
-                    break
+                    logger.warning(
+                        f"Max retries ({MAX_RETRIES}) exceeded. Waiting 5 minutes before retry cycle..."
+                    )
+                    client._reset_retry_count()
+                    client.disconnect()
+                    try:
+                        time.sleep(300)
+                    except KeyboardInterrupt:
+                        client.shutdown()
+                        break
+                    continue
                 backoff = client._calculate_backoff(attempt - 1)
                 logger.error(
                     f"Protocol error (attempt {attempt}/{MAX_RETRIES}): {exc}. "
