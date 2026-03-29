@@ -18,21 +18,21 @@
   - [x] Returns formatted command list
   - [x] Unit tests written
 
-- [ ] `download` - Retrieve file from victim to server
+- [x] `download` - Retrieve file from victim to server
 
-  - [ ] Command class implemented
-  - [ ] Handles binary files
-  - [ ] Error handling for missing files
-  - [ ] Progress reporting
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Handles binary files
+  - [x] Error handling for missing files
+  - [x] Progress reporting
+  - [x] Unit tests written
 
-- [ ] `upload` - Send file from server to victim
+- [x] `upload` - Send file from server to victim
 
-  - [ ] Command class implemented
-  - [ ] Handles binary files
-  - [ ] Path validation
-  - [ ] Progress reporting
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Handles binary files
+  - [x] Path validation
+  - [x] Progress reporting
+  - [x] Unit tests written
 
 - [ ] `shell` - Open interactive shell
 
@@ -42,13 +42,13 @@
   - [ ] Command output capture
   - [ ] Unit tests written
 
-- [ ] `ipconfig` - Get network configuration
+- [x] `ipconfig` - Get network configuration
 
-  - [ ] Command class implemented
-  - [ ] Windows implementation
-  - [ ] Linux implementation
-  - [ ] Returns all interfaces
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Windows implementation
+  - [x] Linux implementation
+  - [x] Returns all interfaces
+  - [x] Unit tests written
 
 - [ ] `screenshot` - Capture screen
 

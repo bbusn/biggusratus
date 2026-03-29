@@ -1,7 +1,7 @@
 import threading
 import time
 
-from client.client import Client
+from client.core import Client
 from server.server import Server
 
 
