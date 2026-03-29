@@ -50,21 +50,21 @@
   - [x] Returns all interfaces
   - [x] Unit tests written
 
-- [X] `screenshot` - Capture screen
+- [x] `screenshot` - Capture screen
 
-  - [X] Command class implemented
-  - [X] Uses Pillow/mss
-  - [X] Returns image data
-  - [X] Multi-monitor support
-  - [X] Unit tests written
+  - [x] Command class implemented
+  - [x] Uses Pillow/mss
+  - [x] Returns image data
+  - [x] Multi-monitor support
+  - [x] Unit tests written
 
-- [ ] `keylogger` - Record keystrokes
+- [x] `keylogger` - Record keystrokes
 
-  - [ ] Command class implemented
-  - [ ] Start/stop/get actions
-  - [ ] Uses pynput
-  - [ ] Thread-safe logging
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Start/stop/get actions
+  - [x] Uses pynput
+  - [x] Thread-safe logging
+  - [x] Unit tests written
 
 - [ ] `webcam_snapshot` - Take webcam photo
 

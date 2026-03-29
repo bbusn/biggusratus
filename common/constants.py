@@ -41,6 +41,7 @@ DOWNLOAD_ACTION = "download"
 UPLOAD_ACTION = "upload"
 SHELL_ACTION = "shell"
 SCREENSHOT_ACTION = "screenshot"
+KEYLOGGER_ACTION = "keylogger"
 
 # OS Types
 OS_WINDOWS = "windows"
