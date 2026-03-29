@@ -49,6 +49,9 @@ from server.output import OutputFormatter
 from server.session import AgentSession
 from server.path_security import validate_local_path, PathSecurityError
 
+# Lock to synchronize prompt display with logging output
+_prompt_lock = threading.Lock()
+
 logger = logging.getLogger(__name__)
 
 
@@ -698,27 +701,70 @@ class Server:
             return f"biggusRatus[{short_id}]> "
         return f"biggusRatus[{session_count}]> "
 
-    def run_interactive(self) -> None:
+    def _print_output(self, text: str) -> None:
+        # Print output and restore prompt.
+        with _prompt_lock:
+            print(f"\r\033[K{text}")
+            if self.running:
+                prompt = self._get_prompt()
+                print(prompt, end="", flush=True)
+
+    def _print_help_with_prompt(self) -> None:
+        # Display help and restore prompt.
+        lines = [
+            "\nAvailable commands:",
+            "  help                           Display available commands",
+            "  list                           Show all connected agents",
+            "  select <agent_id>              Select agent for interaction",
+            "  test                           Send test command to selected agent",
+            "  download <remote> <local>      Download file from agent",
+            "  upload <local> <remote>        Upload file to agent",
+            "  configure <setting> <value>    Configure server settings",
+            "  stats                          Show rate limiter statistics",
+            "  unban <ip>                     Remove IP from rate limit ban",
+            "  exit                           Disconnect selected agent",
+            "  quit                           Shutdown server",
+            "\nConfigurable settings:",
+            "  max_file_size_in_bytes           Max file size for transfers",
+            "  max_connections_per_ip_per_minute  Connection rate limit per IP",
+            "  max_concurrent_connections_per_ip  Max concurrent connections per IP",
+            "  max_total_connections            Max total concurrent connections",
+            "  rate_limit_ban_seconds           Duration to ban IPs after rate limit",
+            ""
+        ]
+        self._print_output("\n".join(lines))
+
+    def run_interactive(self, wakeup_fd: Optional[int] = None) -> None:
         OutputFormatter.info("Server ready. Type 'help' for commands.")
         while self.running:
             try:
-                prompt = self._get_prompt()
-                print(prompt, end="", flush=True)
-                
-                # Use select to check if input is available (non-blocking)
+                # Wait for input availability without holding the lock
                 while self.running:
-                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                    read_fds = [sys.stdin]
+                    if wakeup_fd is not None:
+                        read_fds.append(wakeup_fd)
+                    if select.select(read_fds, [], [], 0.1)[0]:
+                        # Drain wakeup pipe if it was signaled
+                        if wakeup_fd is not None:
+                            try:
+                                os.read(wakeup_fd, 1024)
+                            except OSError:
+                                pass
                         break
                 
                 if not self.running:
                     break
-                    
-                line = sys.stdin.readline()
+                
+                # Now acquire lock to read and process
+                with _prompt_lock:
+                    prompt = self._get_prompt()
+                    print(prompt, end="", flush=True)
+                    line = sys.stdin.readline()
+                
                 if not line:
                     break
                 line = line.strip()
             except (EOFError, KeyboardInterrupt):
-                print()  # Move to new line after ^C
                 break
             if not line:
                 continue
@@ -726,142 +772,147 @@ class Server:
             cmd = parts[0].lower()
             arg = parts[1] if len(parts) > 1 else ""
             if cmd == "help":
-                self._print_help()
+                self._print_help_with_prompt()
             elif cmd == "list":
                 with self.lock:
                     sessions = list(self.sessions.values())
                     selected = self.selected_agent_id
-                print(OutputFormatter.format_session_table(sessions, selected))
+                self._print_output(OutputFormatter.format_session_table(sessions, selected))
             elif cmd == "select":
                 if not arg:
-                    OutputFormatter.error("Usage: select <agent_id>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Usage: select <agent_id>")
                     continue
                 with self.lock:
                     if arg not in self.sessions:
-                        OutputFormatter.error(f"Unknown agent: {arg}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Unknown agent: {arg}")
                         continue
                     self.selected_agent_id = arg
-                OutputFormatter.success(f"Selected agent {arg[:8]}...")
+                self._print_output(f"[{OutputFormatter.timestamp()}] [+] Selected agent {arg[:8]}...")
             elif cmd == "test":
                 target = self.selected_agent_id
                 if target is None:
-                    OutputFormatter.error("Select an agent first: select <agent_id>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Select an agent first: select <agent_id>")
                     continue
                 self.send_test_to_agent(target)
             elif cmd == "download":
                 target = self.selected_agent_id
                 if target is None:
-                    OutputFormatter.error("Select an agent first: select <agent_id>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Select an agent first: select <agent_id>")
                     continue
                 args = arg.split(maxsplit=1)
                 if len(args) < 2:
-                    OutputFormatter.error("Usage: download <remote_path> <local_path>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Usage: download <remote_path> <local_path>")
                     continue
                 remote_path, local_path = args[0], args[1]
-                OutputFormatter.info(f"Downloading {remote_path} -> {local_path}...")
+                self._print_output(f"[{OutputFormatter.timestamp()}] Downloading {remote_path} -> {local_path}...")
                 success = self.download_from_agent(target, remote_path, local_path)
                 if success:
-                    OutputFormatter.success(f"Downloaded {remote_path} -> {local_path}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [+] Downloaded {remote_path} -> {local_path}")
                 else:
-                    OutputFormatter.error(f"Failed to download {remote_path}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Failed to download {remote_path}")
             elif cmd == "upload":
                 target = self.selected_agent_id
                 if target is None:
-                    OutputFormatter.error("Select an agent first: select <agent_id>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Select an agent first: select <agent_id>")
                     continue
                 args = arg.split(maxsplit=1)
                 if len(args) < 2:
-                    OutputFormatter.error("Usage: upload <local_path> <remote_path>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Usage: upload <local_path> <remote_path>")
                     continue
                 local_path, remote_path = args[0], args[1]
-                OutputFormatter.info(f"Uploading {local_path} -> {remote_path}...")
+                self._print_output(f"[{OutputFormatter.timestamp()}] Uploading {local_path} -> {remote_path}...")
                 success = self.upload_to_agent(target, local_path, remote_path)
                 if success:
-                    OutputFormatter.success(f"Uploaded {local_path} -> {remote_path}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [+] Uploaded {local_path} -> {remote_path}")
                 else:
-                    OutputFormatter.error(f"Failed to upload {local_path}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Failed to upload {local_path}")
             elif cmd == "configure":
                 args = arg.split(maxsplit=1)
                 if len(args) < 2:
-                    OutputFormatter.error("Usage: configure <setting> <value>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Usage: configure <setting> <value>")
                     continue
                 setting, value_str = args[0], args[1]
                 if setting == "max_file_size_in_bytes":
                     try:
                         new_value = int(value_str)
                         if new_value <= 0:
-                            OutputFormatter.error("max_file_size_in_bytes must be a positive integer")
+                            self._print_output(f"[{OutputFormatter.timestamp()}] [!] max_file_size_in_bytes must be a positive integer")
                             continue
                         self.max_file_size = new_value
-                        OutputFormatter.success(f"Set max_file_size_in_bytes to {new_value}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [+] Set max_file_size_in_bytes to {new_value}")
                     except ValueError:
-                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Invalid value: {value_str}. Must be an integer.")
                 elif setting == "max_connections_per_ip_per_minute":
                     try:
                         new_value = int(value_str)
                         if new_value <= 0:
-                            OutputFormatter.error("max_connections_per_ip_per_minute must be a positive integer")
+                            self._print_output(f"[{OutputFormatter.timestamp()}] [!] max_connections_per_ip_per_minute must be a positive integer")
                             continue
                         self._rate_limiter.max_connections_per_ip_per_minute = new_value
-                        OutputFormatter.success(f"Set max_connections_per_ip_per_minute to {new_value}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [+] Set max_connections_per_ip_per_minute to {new_value}")
                     except ValueError:
-                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Invalid value: {value_str}. Must be an integer.")
                 elif setting == "max_concurrent_connections_per_ip":
                     try:
                         new_value = int(value_str)
                         if new_value <= 0:
-                            OutputFormatter.error("max_concurrent_connections_per_ip must be a positive integer")
+                            self._print_output(f"[{OutputFormatter.timestamp()}] [!] max_concurrent_connections_per_ip must be a positive integer")
                             continue
                         self._rate_limiter.max_concurrent_per_ip = new_value
-                        OutputFormatter.success(f"Set max_concurrent_connections_per_ip to {new_value}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [+] Set max_concurrent_connections_per_ip to {new_value}")
                     except ValueError:
-                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Invalid value: {value_str}. Must be an integer.")
                 elif setting == "max_total_connections":
                     try:
                         new_value = int(value_str)
                         if new_value <= 0:
-                            OutputFormatter.error("max_total_connections must be a positive integer")
+                            self._print_output(f"[{OutputFormatter.timestamp()}] [!] max_total_connections must be a positive integer")
                             continue
                         self._rate_limiter.max_total_connections = new_value
-                        OutputFormatter.success(f"Set max_total_connections to {new_value}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [+] Set max_total_connections to {new_value}")
                     except ValueError:
-                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Invalid value: {value_str}. Must be an integer.")
                 elif setting == "rate_limit_ban_seconds":
                     try:
                         new_value = int(value_str)
                         if new_value < 0:
-                            OutputFormatter.error("rate_limit_ban_seconds must be a non-negative integer")
+                            self._print_output(f"[{OutputFormatter.timestamp()}] [!] rate_limit_ban_seconds must be a non-negative integer")
                             continue
                         self._rate_limiter.ban_duration_seconds = new_value
-                        OutputFormatter.success(f"Set rate_limit_ban_seconds to {new_value}")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [+] Set rate_limit_ban_seconds to {new_value}")
                     except ValueError:
-                        OutputFormatter.error(f"Invalid value: {value_str}. Must be an integer.")
+                        self._print_output(f"[{OutputFormatter.timestamp()}] [!] Invalid value: {value_str}. Must be an integer.")
                 else:
-                    OutputFormatter.error(f"Unknown setting: {setting}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Unknown setting: {setting}")
             elif cmd == "stats":
                 stats = self._rate_limiter.get_stats()
-                print("\nRate Limiter Statistics:")
-                print(f"  Active connections: {stats['total_active_connections']}/{stats['max_total_connections']}")
-                print(f"  Unique IPs connected: {stats['unique_ips_connected']}")
-                print(f"  Banned IPs: {len(stats['banned_ips'])}")
+                lines = [
+                    "\nRate Limiter Statistics:",
+                    f"  Active connections: {stats['total_active_connections']}/{stats['max_total_connections']}",
+                    f"  Unique IPs connected: {stats['unique_ips_connected']}",
+                    f"  Banned IPs: {len(stats['banned_ips'])}",
+                ]
                 if stats['banned_ips']:
-                    print(f"    {', '.join(stats['banned_ips'])}")
-                print(f"\nLimits:")
-                print(f"  Max connections per IP per minute: {stats['max_connections_per_ip_per_minute']}")
-                print(f"  Max concurrent per IP: {stats['max_concurrent_per_ip']}")
-                print(f"  Ban duration: {stats['ban_duration_seconds']} seconds")
-                print()
+                    lines.append(f"    {', '.join(stats['banned_ips'])}")
+                lines.extend([
+                    "\nLimits:",
+                    f"  Max connections per IP per minute: {stats['max_connections_per_ip_per_minute']}",
+                    f"  Max concurrent per IP: {stats['max_concurrent_per_ip']}",
+                    f"  Ban duration: {stats['ban_duration_seconds']} seconds",
+                    ""
+                ])
+                self._print_output("\n".join(lines))
             elif cmd == "unban":
                 if not arg:
-                    OutputFormatter.error("Usage: unban <ip>")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [!] Usage: unban <ip>")
                     continue
                 if self._rate_limiter.unban_ip(arg):
-                    OutputFormatter.success(f"Unbanned IP: {arg}")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [+] Unbanned IP: {arg}")
                 else:
-                    OutputFormatter.warning(f"IP {arg} was not banned")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [?] IP {arg} was not banned")
             elif cmd == "exit":
                 if self.selected_agent_id is None:
-                    OutputFormatter.warning("No agent selected.")
+                    self._print_output(f"[{OutputFormatter.timestamp()}] [?] No agent selected.")
                     continue
                 with self.lock:
                     session = self.sessions.pop(self.selected_agent_id, None)
@@ -871,14 +922,14 @@ class Server:
                         sock.close()
                     except OSError:
                         pass
-                OutputFormatter.info(f"Disconnected agent {self.selected_agent_id[:8]}...")
+                self._print_output(f"[{OutputFormatter.timestamp()}] Disconnected agent {self.selected_agent_id[:8]}...")
                 self.selected_agent_id = None
             elif cmd == "quit":
-                OutputFormatter.info("Shutting down server...")
+                self._print_output(f"[{OutputFormatter.timestamp()}] Shutting down server...")
                 break
             else:
-                OutputFormatter.error(f"Unknown command: {cmd}")
-                print("Type 'help' for available commands.")
+                self._print_output(f"[{OutputFormatter.timestamp()}] [!] Unknown command: {cmd}")
+                self._print_output("Type 'help' for available commands.")
 
     def stop(self) -> None:
         self.running = False

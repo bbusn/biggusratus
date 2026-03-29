@@ -58,41 +58,49 @@ def main() -> None:
     )
     client = Client(host=args.host, port=args.port)
     logger.info(f"Connecting to {args.host}:{args.port}...")
-    while not client._shutdown:
-        try:
-            client.run_session()
-        except KeyboardInterrupt:
-            client.shutdown()
-            logger.info("Client shutting down")
-            break
-        except (ConnectionRefusedError, ConnectionError, OSError) as exc:
-            if client._shutdown:
-                break
-            attempt = client._increment_retry()
-            if attempt > MAX_RETRIES:
-                logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
-                break
-            backoff = client._calculate_backoff(attempt - 1)
-            logger.warning(
-                f"Connection lost or failed (attempt {attempt}/{MAX_RETRIES}): {exc}. "
-                f"Retrying in {backoff:.1f}s..."
-            )
-            client.disconnect()
-            time.sleep(backoff)
-        except (ProtocolError, ValueError, CryptoError, KeyExchangeError, HmacError) as exc:
-            if client._shutdown:
-                break
-            attempt = client._increment_retry()
-            if attempt > MAX_RETRIES:
-                logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
-                break
-            backoff = client._calculate_backoff(attempt - 1)
-            logger.error(
-                f"Protocol error (attempt {attempt}/{MAX_RETRIES}): {exc}. "
-                f"Retrying in {backoff:.1f}s..."
-            )
-            client.disconnect()
-            time.sleep(backoff)
+    try:
+        while not client._shutdown:
+            try:
+                client.run_session()
+            except (ConnectionRefusedError, ConnectionError, OSError) as exc:
+                if client._shutdown:
+                    break
+                attempt = client._increment_retry()
+                if attempt > MAX_RETRIES:
+                    logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
+                    break
+                backoff = client._calculate_backoff(attempt - 1)
+                logger.warning(
+                    f"Connection lost or failed (attempt {attempt}/{MAX_RETRIES}): {exc}. "
+                    f"Retrying in {backoff:.1f}s..."
+                )
+                client.disconnect()
+                try:
+                    time.sleep(backoff)
+                except KeyboardInterrupt:
+                    client.shutdown()
+                    break
+            except (ProtocolError, ValueError, CryptoError, KeyExchangeError, HmacError) as exc:
+                if client._shutdown:
+                    break
+                attempt = client._increment_retry()
+                if attempt > MAX_RETRIES:
+                    logger.error(f"Max retries ({MAX_RETRIES}) exceeded. Giving up.")
+                    break
+                backoff = client._calculate_backoff(attempt - 1)
+                logger.error(
+                    f"Protocol error (attempt {attempt}/{MAX_RETRIES}): {exc}. "
+                    f"Retrying in {backoff:.1f}s..."
+                )
+                client.disconnect()
+                try:
+                    time.sleep(backoff)
+                except KeyboardInterrupt:
+                    client.shutdown()
+                    break
+    except KeyboardInterrupt:
+        client.shutdown()
+        logger.info("Client shutting down")
 
 
 if __name__ == "__main__":

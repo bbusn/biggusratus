@@ -1,15 +1,19 @@
 import argparse
 import logging
+import os
 import select
+import signal
 import sys
 from typing import Optional
 
 from common.constants import DEFAULT_HOST, DEFAULT_PORT
-from server.core import Server
+from server.core import Server, _prompt_lock
 from server.output import OutputFormatter
 
 # Global reference to current server instance for prompt restoration
 _current_server: Optional[Server] = None
+_wakeup_read: Optional[int] = None
+_wakeup_write: Optional[int] = None
 
 
 class PromptRestoringHandler(logging.Handler):
@@ -18,16 +22,28 @@ class PromptRestoringHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
-            # Clear the current line and print the message
-            if record.levelno >= logging.ERROR:
-                print(f"\r\033[K{msg}", file=sys.stderr)
-            else:
-                print(f"\r\033[K{msg}")
-            if _current_server is not None and _current_server.running:
-                prompt = _current_server._get_prompt()
-                print(prompt, end="", flush=True)
+            with _prompt_lock:
+                # Clear the current line and print the message
+                if record.levelno >= logging.ERROR:
+                    print(f"\r\033[K{msg}", file=sys.stderr, flush=True)
+                else:
+                    print(f"\r\033[K{msg}", flush=True)
+                if _current_server is not None and _current_server.running:
+                    prompt = _current_server._get_prompt()
+                    print(prompt, end="", flush=True)
         except Exception:
             self.handleError(record)
+
+
+def _signal_handler(signum, frame):
+    if _current_server is not None:
+        _current_server.running = False
+    # Write to wakeup pipe to interrupt select
+    if _wakeup_write is not None:
+        try:
+            os.write(_wakeup_write, b'\x00')
+        except OSError:
+            pass
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,9 +80,14 @@ Examples:
 
 
 def main() -> None:
-    global _current_server
+    global _current_server, _wakeup_read, _wakeup_write
     args = parse_args()
     log_level = logging.DEBUG if args.verbose else logging.INFO
+
+    # Create wakeup pipe for signal handling
+    _wakeup_read, _wakeup_write = os.pipe()
+    os.set_blocking(_wakeup_read, False)
+    os.set_blocking(_wakeup_write, False)
 
     # Configure logging with prompt-restoring handler
     root_logger = logging.getLogger()
@@ -83,17 +104,25 @@ def main() -> None:
 
     server = Server(host=args.host, port=args.port)
     _current_server = server
+    
+    # Set up signal handler for graceful Ctrl+C
+    signal.signal(signal.SIGINT, _signal_handler)
+    
     try:
         server.start()
-        server.run_interactive()
-    except KeyboardInterrupt:
+        server.run_interactive(_wakeup_read)
         OutputFormatter.info("Interrupt received")
     finally:
         _current_server = None
-        try:
-            server.stop()
-        except KeyboardInterrupt:
-            pass
+        server.stop()
+        # Remove handler before shutdown to avoid lock issues
+        root_logger.removeHandler(handler)
+        handler.close()
+        # Close wakeup pipe
+        if _wakeup_read is not None:
+            os.close(_wakeup_read)
+        if _wakeup_write is not None:
+            os.close(_wakeup_write)
 
 
 if __name__ == "__main__":

@@ -34,13 +34,13 @@
   - [x] Progress reporting
   - [x] Unit tests written
 
-- [ ] `shell` - Open interactive shell
+- [x] `shell` - Open interactive shell
 
-  - [ ] Command class implemented
-  - [ ] Windows cmd.exe support
-  - [ ] Linux bash support
-  - [ ] Command output capture
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Windows cmd.exe support
+  - [x] Linux bash support
+  - [x] Command output capture
+  - [x] Unit tests written
 
 - [x] `ipconfig` - Get network configuration
 
@@ -50,21 +50,21 @@
   - [x] Returns all interfaces
   - [x] Unit tests written
 
-- [ ] `screenshot` - Capture screen
+- [x] `screenshot` - Capture screen
 
-  - [ ] Command class implemented
-  - [ ] Uses Pillow/mss
-  - [ ] Returns image data
-  - [ ] Multi-monitor support
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Uses Pillow/mss
+  - [x] Returns image data
+  - [x] Multi-monitor support
+  - [x] Unit tests written
 
-- [ ] `keylogger` - Record keystrokes
+- [x] `keylogger` - Record keystrokes
 
-  - [ ] Command class implemented
-  - [ ] Start/stop/get actions
-  - [ ] Uses pynput
-  - [ ] Thread-safe logging
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Start/stop/get actions
+  - [x] Uses pynput
+  - [x] Thread-safe logging
+  - [x] Unit tests written
 
 - [ ] `webcam_snapshot` - Take webcam photo
 

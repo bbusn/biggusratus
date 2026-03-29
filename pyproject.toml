@@ -12,6 +12,9 @@ packages = [
 python = "^3.11"
 cryptography = "^44.0"
 netifaces = "^0.11"
+mss = "^10.1.0"
+pillow = "^12.1.1"
+pynput = "^1.7.7"
 
 [tool.poetry.scripts]
 server = "server.server:main"
