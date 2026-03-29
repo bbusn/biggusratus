@@ -66,13 +66,13 @@
   - [x] Thread-safe logging
   - [x] Unit tests written
 
-- [ ] `webcam_snapshot` - Take webcam photo
+- [x] `webcam_snapshot` - Take webcam photo
 
-  - [ ] Command class implemented
-  - [ ] Uses OpenCV
-  - [ ] Returns image data
-  - [ ] Camera selection
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Uses OpenCV
+  - [x] Returns image data
+  - [x] Camera selection
+  - [x] Unit tests written
 
 - [ ] `webcam_stream` - Stream webcam video
 
