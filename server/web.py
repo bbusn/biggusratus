@@ -58,6 +58,104 @@ class WebHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_POST(self):
+        if self.path.startswith("/api/agents/"):
+            parts = self.path[12:].split("/")
+            if len(parts) >= 2:
+                agent_id = parts[0]
+                action = parts[1]
+                if action == "test":
+                    self._handle_test(agent_id)
+                elif action == "disconnect":
+                    self._handle_disconnect(agent_id)
+                elif action == "download":
+                    self._handle_download(agent_id)
+                elif action == "upload":
+                    self._handle_upload(agent_id)
+                else:
+                    self._send_json({"success": False, "error": "Unknown action"}, 400)
+            else:
+                self._send_json({"success": False, "error": "Invalid path"}, 400)
+        else:
+            self.send_error(404)
+
+    def _read_json_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        body = self.rfile.read(length)
+        return json.loads(body.decode())
+
+    def _handle_test(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        with _server_instance.lock:
+            if agent_id not in _server_instance.sessions:
+                self._send_json({"success": False, "error": "Agent not found"}, 404)
+                return
+        try:
+            _server_instance.send_test_to_agent(agent_id)
+            self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
+    def _handle_disconnect(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        with _server_instance.lock:
+            session = _server_instance.sessions.pop(agent_id, None)
+            sock = session.socket if session else None
+        if sock:
+            try:
+                sock.close()
+            except OSError:
+                pass
+            self._send_json({"success": True})
+        else:
+            self._send_json({"success": False, "error": "Agent not found"}, 404)
+
+    def _handle_download(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            remote_path = data.get("remote_path")
+            local_path = data.get("local_path")
+            if not remote_path or not local_path:
+                self._send_json({"success": False, "error": "Missing paths"}, 400)
+                return
+            with _server_instance.lock:
+                if agent_id not in _server_instance.sessions:
+                    self._send_json({"success": False, "error": "Agent not found"}, 404)
+                    return
+            success = _server_instance.download_from_agent(agent_id, remote_path, local_path)
+            self._send_json({"success": success})
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
+    def _handle_upload(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            local_path = data.get("local_path")
+            remote_path = data.get("remote_path")
+            if not local_path or not remote_path:
+                self._send_json({"success": False, "error": "Missing paths"}, 400)
+                return
+            with _server_instance.lock:
+                if agent_id not in _server_instance.sessions:
+                    self._send_json({"success": False, "error": "Agent not found"}, 404)
+                    return
+            success = _server_instance.upload_to_agent(agent_id, local_path, remote_path)
+            self._send_json({"success": success})
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
     def _serve_agents(self):
         if _server_instance is None:
             self._send_json({"agents": []})
@@ -66,7 +164,7 @@ class WebHandler(BaseHTTPRequestHandler):
             agents = []
             for session in _server_instance.sessions.values():
                 agents.append({
-                    "id": session.agent_id[:8],
+                    "id": session.agent_id,
                     "ip": session.address[0],
                     "port": session.address[1],
                     "os": session.os_type or "unknown",
