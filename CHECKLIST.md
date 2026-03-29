@@ -91,13 +91,13 @@
   - [ ] Returns WAV data
   - [ ] Unit tests written
 
-- [ ] `search` - Search for files
+- [x] `search` - Search for files
 
-  - [ ] Command class implemented
-  - [ ] Pattern matching
-  - [ ] Recursive search option
-  - [ ] Returns file list with paths
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Pattern matching
+  - [x] Recursive search option
+  - [x] Returns file list with paths
+  - [x] Unit tests written
 
 - [ ] `hashdump` - Extract password hashes
 
