@@ -1,0 +1,12 @@
+.git
+.gitignore
+*.md
+tests/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.pre-commit-config.yaml

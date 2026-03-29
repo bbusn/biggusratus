@@ -1,0 +1,10 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "8443:8443"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
