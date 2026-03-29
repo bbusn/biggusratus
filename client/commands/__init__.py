@@ -1,5 +1,6 @@
 from client.commands.help import HelpCommand
 from client.commands.ipconfig import IpconfigCommand
 from client.commands.shell import ShellCommand
+from client.commands.screenshot import ScreenshotCommand
 
-__all__ = ["HelpCommand", "IpconfigCommand", "ShellCommand"]
+__all__ = ["HelpCommand", "IpconfigCommand", "ShellCommand", "ScreenshotCommand"]
