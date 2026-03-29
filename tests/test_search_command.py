@@ -95,10 +95,10 @@ class TestSearchCommand:
 
         assert result["success"] is True
         assert result["count"] == 3
-        paths = [f["path"] for f in result["files"]]
-        assert str(files["root_txt"]) in paths
-        assert str(files["sub_txt"]) in paths
-        assert str(files["deep_txt"]) in paths
+        paths = [os.path.realpath(f["path"]) for f in result["files"]]
+        assert os.path.realpath(files["root_txt"]) in paths
+        assert os.path.realpath(files["sub_txt"]) in paths
+        assert os.path.realpath(files["deep_txt"]) in paths
 
     def test_execute_non_recursive_search(self) -> None:
         files = self._create_test_files()
@@ -111,9 +111,9 @@ class TestSearchCommand:
 
         assert result["success"] is True
         assert result["count"] == 1
-        paths = [f["path"] for f in result["files"]]
-        assert str(files["root_txt"]) in paths
-        assert str(files["sub_txt"]) not in paths
+        paths = [os.path.realpath(f["path"]) for f in result["files"]]
+        assert os.path.realpath(files["root_txt"]) in paths
+        assert os.path.realpath(files["sub_txt"]) not in paths
 
     def test_execute_pattern_matching(self) -> None:
         files = self._create_test_files()
@@ -126,10 +126,10 @@ class TestSearchCommand:
 
         assert result["success"] is True
         assert result["count"] == 2
-        paths = [f["path"] for f in result["files"]]
-        assert str(files["root_py"]) in paths
-        assert str(files["sub_py"]) in paths
-        assert str(files["root_txt"]) not in paths
+        paths = [os.path.realpath(f["path"]) for f in result["files"]]
+        assert os.path.realpath(files["root_py"]) in paths
+        assert os.path.realpath(files["sub_py"]) in paths
+        assert os.path.realpath(files["root_txt"]) not in paths
 
     def test_execute_exact_filename_match(self) -> None:
         files = self._create_test_files()
