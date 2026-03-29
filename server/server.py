@@ -9,6 +9,7 @@ from typing import Optional
 from common.constants import DEFAULT_HOST, DEFAULT_PORT
 from server.core import Server, _prompt_lock
 from server.output import OutputFormatter
+from server.web import start_web_server
 
 # Global reference to current server instance for prompt restoration
 _current_server: Optional[Server] = None
@@ -76,6 +77,12 @@ Examples:
         action="store_true",
         help="Enable verbose (debug) logging",
     )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8080,
+        help="Port for web interface (default: 8080)",
+    )
     return parser.parse_args()
 
 
@@ -105,7 +112,8 @@ def main() -> None:
     server = Server(host=args.host, port=args.port)
     _current_server = server
     
-    # Set up signal handler for graceful Ctrl+C
+    web_httpd = start_web_server(args.host, args.web_port, server)
+    
     signal.signal(signal.SIGINT, _signal_handler)
     
     try:
