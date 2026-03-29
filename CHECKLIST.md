@@ -74,13 +74,13 @@
   - [x] Camera selection
   - [x] Unit tests written
 
-- [ ] `webcam_stream` - Stream webcam video
+- [x] `webcam_stream` - Stream webcam video
 
-  - [ ] Command class implemented
-  - [ ] Start/stop actions
-  - [ ] Uses OpenCV
-  - [ ] Frame encoding
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Start/stop actions
+  - [x] Uses OpenCV
+  - [x] Frame encoding
+  - [x] Unit tests written
 
 - [ ] `record_audio` - Record from microphone
 
