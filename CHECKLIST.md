@@ -82,14 +82,14 @@
   - [x] Frame encoding
   - [x] Unit tests written
 
-- [ ] `record_audio` - Record from microphone
+- [x] `record_audio` - Record from microphone
 
-  - [ ] Command class implemented
-  - [ ] Start/stop actions
-  - [ ] Duration parameter
-  - [ ] Uses PyAudio
-  - [ ] Returns WAV data
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Start/stop actions
+  - [x] Duration parameter
+  - [x] Uses PyAudio
+  - [x] Returns WAV data
+  - [x] Unit tests written
 
 - [x] `search` - Search for files
 
