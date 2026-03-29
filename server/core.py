@@ -411,13 +411,18 @@ class Server:
                         session.update_last_seen()
                 self._handle_agent_incoming(client_socket, agent_id, message)
             except socket.timeout:
+                idle_timeout: Optional[float] = None
                 with self.lock:
                     session = self.sessions.get(agent_id)
-                    if session and session.idle_time > READ_TIMEOUT_SEC:
-                        logger.warning(
-                            f"Agent {agent_id} idle timeout ({session.idle_time:.1f}s)"
-                        )
-                        raise
+                    if session:
+                        current_idle = session.idle_time
+                        if current_idle > READ_TIMEOUT_SEC:
+                            idle_timeout = current_idle
+                if idle_timeout is not None:
+                    logger.warning(
+                        f"Agent {agent_id} idle timeout ({idle_timeout:.1f}s)"
+                    )
+                    raise
                 continue
             except CryptoError as exc:
                 logger.error(f"Agent {agent_id} decryption error: {exc}")
