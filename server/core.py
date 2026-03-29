@@ -468,6 +468,47 @@ class Server:
             with self._response_lock:
                 self._response_waiters.pop(request_id, None)
 
+    def send_command_to_agent(self, agent_id: str, action: str, params: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+        with self.lock:
+            session = self.sessions.get(agent_id)
+            sock = session.socket if session else None
+            encryptor = session.encryptor if session else None
+            authenticator = session.authenticator if session else None
+        if sock is None:
+            return {"success": False, "error": f"No such agent: {agent_id}"}
+        cmd = build_command(action, params)
+        if authenticator:
+            cmd = sign_message(cmd, authenticator)
+        request_id = str(cmd["id"])
+        waiter: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+        with self._response_lock:
+            self._response_waiters[request_id] = waiter
+        try:
+            plaintext = encode_message(cmd)
+            if encryptor is not None:
+                ciphertext = encryptor.encrypt(plaintext)
+            else:
+                ciphertext = plaintext
+            send_frame(sock, ciphertext)
+            response = waiter.get(timeout=timeout)
+            with self.lock:
+                session = self.sessions.get(agent_id)
+                if session:
+                    session.update_last_seen()
+            data = response.get("data", {})
+            payload = data.get("payload", "{}")
+            try:
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                return {"success": False, "error": "Invalid response payload"}
+        except queue.Empty:
+            return {"success": False, "error": "Timeout waiting for response"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            with self._response_lock:
+                self._response_waiters.pop(request_id, None)
+
     def download_from_agent(
         self, agent_id: str, remote_path: str, local_path: str
     ) -> bool:
