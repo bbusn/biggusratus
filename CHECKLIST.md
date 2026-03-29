@@ -50,13 +50,13 @@
   - [x] Returns all interfaces
   - [x] Unit tests written
 
-- [ ] `screenshot` - Capture screen
+- [X] `screenshot` - Capture screen
 
-  - [ ] Command class implemented
-  - [ ] Uses Pillow/mss
-  - [ ] Returns image data
-  - [ ] Multi-monitor support
-  - [ ] Unit tests written
+  - [X] Command class implemented
+  - [X] Uses Pillow/mss
+  - [X] Returns image data
+  - [X] Multi-monitor support
+  - [X] Unit tests written
 
 - [ ] `keylogger` - Record keystrokes
 
