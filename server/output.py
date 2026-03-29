@@ -56,18 +56,18 @@ class OutputFormatter:
         if not sessions:
             return "No connected agents."
 
-        header = f"{'ID':<36} {'Address':<21} {'OS':<8} {'Duration':<10} {'Idle':<10} {'Status':<8}"
+        header = f"{'ID':<37} {'Address':<21} {'OS':<8} {'Duration':<10} {'Idle':<10} {'Status':<8}"
         lines = [header, "-" * len(header)]
 
         for session in sessions:
-            session_id = session.agent_id[:8] + "..."
+            session_id = session.agent_id
             address = f"{session.address[0]}:{session.address[1]}"
             os_type = (session.os_type or "unknown")[:7]
             duration = OutputFormatter.format_duration(session.session_duration)
             idle = OutputFormatter.format_duration(session.idle_time)
             status = "active" if session.idle_time < 30 else "idle"
 
-            marker = "*" if session.agent_id == selected_id else " "
+            marker = "* " if session.agent_id == selected_id else "  "
             line = f"{marker}{session_id:<35} {address:<21} {os_type:<8} {duration:<10} {idle:<10} {status:<8}"
             lines.append(line)
 

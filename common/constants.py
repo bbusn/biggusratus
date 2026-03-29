@@ -39,6 +39,7 @@ TEST_ACTION = "test"
 HELP_ACTION = "help"
 DOWNLOAD_ACTION = "download"
 UPLOAD_ACTION = "upload"
+SHELL_ACTION = "shell"
 
 # OS Types
 OS_WINDOWS = "windows"

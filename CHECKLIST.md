@@ -34,13 +34,13 @@
   - [x] Progress reporting
   - [x] Unit tests written
 
-- [ ] `shell` - Open interactive shell
+- [x] `shell` - Open interactive shell
 
-  - [ ] Command class implemented
-  - [ ] Windows cmd.exe support
-  - [ ] Linux bash support
-  - [ ] Command output capture
-  - [ ] Unit tests written
+  - [x] Command class implemented
+  - [x] Windows cmd.exe support
+  - [x] Linux bash support
+  - [x] Command output capture
+  - [x] Unit tests written
 
 - [x] `ipconfig` - Get network configuration
 
