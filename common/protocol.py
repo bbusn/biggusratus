@@ -6,13 +6,16 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from common.constants import HANDSHAKE_ACTION, PROTOCOL_VERSION
+from common.constants import HANDSHAKE_ACTION, MAX_MESSAGE_BYTES, PROTOCOL_VERSION
 from common.hmac import HmacError, MessageAuthenticator
 
 
 def encode_message(message: Dict[str, Any]) -> bytes:
     # Serialize a protocol message to UTF-8 JSON bytes.
-    return json.dumps(message, separators=(",", ":")).encode("utf-8")
+    result = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    if len(result) > MAX_MESSAGE_BYTES:
+        raise ValueError(f"Message size {len(result)} exceeds limit {MAX_MESSAGE_BYTES}")
+    return result
 
 
 def decode_message(data: bytes) -> Dict[str, Any]:

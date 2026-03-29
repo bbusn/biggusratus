@@ -47,7 +47,7 @@ class DownloadCommand(BaseCommand):
 
     def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         # Execute the download command.
-        remote_path = params.get("remote_path")
+        remote_path = params.get("remote_path") or params.get("path")
         if not remote_path:
             return self._error_response("Missing required parameter: remote_path")
         

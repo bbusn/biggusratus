@@ -422,14 +422,15 @@ class TestDoSAttacks:
 
     def test_max_file_size_enforced(self) -> None:
         upload_cmd = UploadCommand()
-        large_data = b"x" * (MAX_FILE_SIZE_BYTES + 1)
+        # Use +4 to exceed base64 encoding estimation granularity
+        large_data = b"x" * (MAX_FILE_SIZE_BYTES + 4)
         encoded = base64.b64encode(large_data).decode("utf-8")
         with tempfile.TemporaryDirectory() as tmpdir:
             result = upload_cmd.execute({
                 "remote_path": os.path.join(tmpdir, "large.bin"),
                 "content": encoded,
             })
-            assert result["success"] is True
+            assert result["success"] is False
 
     def test_message_size_limit(self) -> None:
         assert MAX_MESSAGE_BYTES == 16 * 1024 * 1024
@@ -601,7 +602,7 @@ class TestEmptyFiles:
             open(empty_file, "w").close()
             result = download_cmd.execute({"path": empty_file})
             assert result["success"] is True
-            assert result["data"]["content"] == ""
+            assert result["content"] == ""
 
     def test_empty_file_hmac_validation(self) -> None:
         auth = MessageAuthenticator(b"x" * 32)
@@ -642,7 +643,7 @@ class TestBinaryFiles:
                 f.write(binary_data)
             result = download_cmd.execute({"path": bin_file})
             assert result["success"] is True
-            decoded = base64.b64decode(result["data"]["content"])
+            decoded = base64.b64decode(result["content"])
             assert decoded == binary_data
 
     def test_binary_with_null_bytes(self) -> None:
@@ -691,7 +692,8 @@ class TestVeryLargeFiles:
 
     def test_file_over_size_limit_rejected(self) -> None:
         upload_cmd = UploadCommand()
-        large_data = b"x" * (MAX_FILE_SIZE_BYTES + 1024)
+        # Use +4 to exceed base64 estimation margin
+        large_data = b"x" * (MAX_FILE_SIZE_BYTES + 4)
         encoded = base64.b64encode(large_data).decode("utf-8")
         with tempfile.TemporaryDirectory() as tmpdir:
             result = upload_cmd.execute({

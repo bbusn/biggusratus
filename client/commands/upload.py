@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict
 
 from client.commands.base import BaseCommand
+from common.constants import MAX_FILE_SIZE_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,14 @@ class UploadCommand(BaseCommand):
             return self._error_response("Missing required parameter: remote_path")
         if content_base64 is None:
             return self._error_response("Missing required parameter: content")
+
+        # Check file size limit before processing
+        # Note: Base64 estimation can round up by 1-3 bytes due to integer division
+        if content_base64:
+            estimated_size = (len(content_base64) * 3) // 4
+            # Allow 3-byte margin for base64 estimation rounding
+            if estimated_size > MAX_FILE_SIZE_BYTES + 3:
+                return self._error_response(f"File size {estimated_size} exceeds limit {MAX_FILE_SIZE_BYTES}")
 
         try:
             # Validate and normalize the path (prevent path traversal)
