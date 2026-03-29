@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="docs/images/goblin.gif" width="350" />
+
 # BiggusRatus
+
+</div>
 
 Remote Administration Tool (RAT) implemented in Python. The project consists of a client, deployed on target machines, that executes commands and reports back and a server, a control center that manages multiple agents through an interactive interface.
 
@@ -186,3 +192,5 @@ Pre-commit must be configured and used. Run before commits:
 ```bash
 pre-commit run --all-files
 ```
+
+<br><br>
