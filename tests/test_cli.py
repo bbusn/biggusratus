@@ -37,7 +37,8 @@ class TestOutputFormatter:
         ]
         result = OutputFormatter.format_session_table(sessions)
 
-        assert "test-id-..." in result
+        assert "test-id-1" in result
+        assert "test-id-2" in result
         assert "192.168.1.1:12345" in result
         assert "192.168.1.2:54321" in result
         assert "Address" in result
@@ -47,12 +48,12 @@ class TestOutputFormatter:
     def test_format_session_table_with_selected(self) -> None:
         sessions = [AgentSession("test-id-1", ("192.168.1.1", 12345))]
         result = OutputFormatter.format_session_table(sessions, selected_id="test-id-1")
-        assert "*test-id-..." in result
+        assert "* test-id-1" in result
 
     def test_format_session_table_without_selected(self) -> None:
         sessions = [AgentSession("test-id-1", ("192.168.1.1", 12345))]
         result = OutputFormatter.format_session_table(sessions, selected_id="other-id")
-        assert " test-id-..." in result
+        assert "  test-id-1" in result
 
     def test_info_output(self, capsys: pytest.CaptureFixture) -> None:
         with patch("server.output.datetime") as mock_datetime:
