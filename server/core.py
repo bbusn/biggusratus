@@ -396,6 +396,8 @@ class Server:
         while self.running:
             try:
                 ciphertext = recv_frame(client_socket)
+                if not self.running:
+                    break
                 with self.lock:
                     session = self.sessions.get(agent_id)
                     if session and session.encryptor:
@@ -754,13 +756,13 @@ class Server:
                 
                 if not self.running:
                     break
-                
-                # Now acquire lock to read and process
+
+                # Print prompt with lock, then release before blocking on input
                 with _prompt_lock:
                     prompt = self._get_prompt()
                     print(prompt, end="", flush=True)
-                    line = sys.stdin.readline()
-                
+
+                line = sys.stdin.readline()
                 if not line:
                     break
                 line = line.strip()
@@ -933,18 +935,15 @@ class Server:
 
     def stop(self) -> None:
         self.running = False
-        try:
-            with self.lock:
-                for session in list(self.sessions.values()):
-                    if session.socket:
-                        try:
-                            session.socket.close()
-                        except OSError:
-                            pass
-                self.sessions.clear()
-                self.selected_agent_id = None
-        except KeyboardInterrupt:
-            pass
+        with self.lock:
+            for session in list(self.sessions.values()):
+                if session.socket:
+                    try:
+                        session.socket.close()
+                    except OSError:
+                        pass
+            self.sessions.clear()
+            self.selected_agent_id = None
         if self.socket:
             try:
                 self.socket.close()
@@ -952,9 +951,6 @@ class Server:
                 pass
             self.socket = None
         if self._accept_thread is not None:
-            try:
-                self._accept_thread.join(timeout=2.0)
-            except KeyboardInterrupt:
-                pass
+            self._accept_thread.join(timeout=0.5)
             self._accept_thread = None
         logger.info("Server stopped")

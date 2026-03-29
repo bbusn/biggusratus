@@ -6,3 +6,6 @@ common/__pycache__/
 .ruff_cache/
 *.pyc
 .DS_Store
+server/web/node_modules/
+server/web/package-lock.json
+server/web/dist/

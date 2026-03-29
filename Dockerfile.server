@@ -11,6 +11,12 @@ RUN pip install poetry==1.8.2
 COPY pyproject.toml ./
 RUN poetry install --no-root --only main
 
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
+
+COPY server/web/package.json ./server/web/
+COPY server/web/src/ ./server/web/src/
+RUN cd server/web && npm install && npm run build && rm -rf node_modules
+
 COPY server/ ./server/
 COPY common/ ./common/
 

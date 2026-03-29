@@ -1,0 +1,16 @@
+{
+  "name": "biggusratus-web",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "npx @tailwindcss/cli -i ./index.css -o ./static/index.css --minify",
+    "watch": "npx @tailwindcss/cli -i ./index.css -o ./static/index.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.2.2"
+  }
+}

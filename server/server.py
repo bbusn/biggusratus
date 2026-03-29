@@ -123,6 +123,7 @@ def main() -> None:
     finally:
         _current_server = None
         server.stop()
+        web_httpd.shutdown()
         # Remove handler before shutdown to avoid lock issues
         root_logger.removeHandler(handler)
         handler.close()

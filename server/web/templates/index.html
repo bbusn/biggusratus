@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Biggus Ratus - Agents</title>
+    <link rel="stylesheet" href="/static/index.css" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/static/favicon-96x96.png"
+      sizes="96x96"
+    />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/apple-touch-icon.png"
+    />
+    <meta name="apple-mobile-web-app-title" content="BiggusRatus" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+  </head>
+  <body class="bg-white min-h-screen">
+    <div class="max-w-6xl mx-auto px-6 py-8">
+      <header class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <img src="/static/logo.svg" alt="Logo" class="w-10 h-10" />
+          <h1 class="text-2xl font-semibold text-primary">Biggus Ratus</h1>
+        </div>
+        <button
+          id="refresh-btn"
+          onclick="loadAgents()"
+          class="bg-primary hover:brightness-90 active:brightness-80 active:scale-95 transition-all duration-200 text-white px-4 py-2 rounded-sm text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Refresh
+        </button>
+      </header>
+      <h2 class="text-lg text-gray-600 mb-4">Connected Agents</h2>
+      <div
+        class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"
+      >
+        <table class="w-full">
+          <thead>
+            <tr class="bg-primary/10 border-b border-gray-200">
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                Status
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                Agent ID
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                IP Address
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                OS
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                Connected
+              </th>
+              <th
+                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
+              >
+                Last Seen
+              </th>
+            </tr>
+          </thead>
+          <tbody id="agents-body" class="divide-y divide-gray-200">
+            <tr id="loading-row">
+              <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                <div class="flex items-center justify-center gap-2">
+                  <svg
+                    class="w-5 h-5 animate-spin text-primary"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018 0V6.707A1.006 1.006 0 00-1.414-1.414A1.004 1.004 0 00-.475 1.414 8.848 8.848 0 016.707.475z"
+                    ></path>
+                  </svg>
+                  <span id="loading-text">Loading agents...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+          <tbody id="skeleton-body" class="divide-y divide-gray-200 hidden">
+            <tr>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
