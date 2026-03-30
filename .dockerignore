@@ -3,6 +3,9 @@
 *.md
 tests/
 .venv/
+build/
+dist/
+*.spec
 venv/
 __pycache__/
 *.pyc

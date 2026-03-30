@@ -9,3 +9,6 @@ common/__pycache__/
 server/web/node_modules/
 server/web/package-lock.json
 server/web/dist/
+build/
+dist/
+*.spec

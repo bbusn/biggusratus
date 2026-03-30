@@ -16,6 +16,7 @@ mss = "^10.1.0"
 pillow = "^12.1.1"
 pynput = "^1.7.7"
 opencv-python = "^4.9.0"
+pyaudio = "^0.2.14"
 
 [tool.poetry.scripts]
 server = "server.server:main"
