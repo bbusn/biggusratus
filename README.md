@@ -47,6 +47,14 @@ chmod +x build-client.sh
 
 The binary will be output to `dist/biggusratus-client`.
 
+### Running
+
+You can run the client with
+
+```bash
+poetry run client
+```
+
 ## Server
 
 ### Core
@@ -66,6 +74,14 @@ The binary will be output to `dist/biggusratus-client`.
 | `exit`        | Disconnect selected agent    |
 | `quit`        | Shutdown server              |
 | `help`        | Display available commands   |
+
+### Running
+
+You can run the server with
+
+```bash
+poetry run server
+```
 
 ### Web Interface
 
@@ -216,6 +232,12 @@ def test_shell_command(self, os_type, expected):
     # Test shell command selection.
     result = get_shell_command(os_type)
     assert result == expected
+```
+
+You can tests with :
+
+```bash
+poetry run pytest
 ```
 
 ### Pre-Commit
