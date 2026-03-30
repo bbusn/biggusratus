@@ -128,11 +128,18 @@ class TestShellCommandPlatform:
     def test_shell_command_execution_windows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(platform, "system", lambda: "Windows")
 
-        command = ShellCommand()
-        result = command.execute({"command": "echo test"})
+        mock_result = MagicMock()
+        mock_result.stdout = b"test output"
+        mock_result.stderr = b""
+        mock_result.returncode = 0
 
-        assert result["success"] is True
-        assert result["shell"] == "cmd.exe"
+        with patch("client.commands.shell.subprocess.run", return_value=mock_result) as mock_run:
+            command = ShellCommand()
+            result = command.execute({"command": "echo test"})
+
+            assert result["success"] is True
+            assert result["shell"] == "cmd.exe"
+            mock_run.assert_called_once()
 
     def test_shell_command_execution_linux(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(platform, "system", lambda: "Linux")

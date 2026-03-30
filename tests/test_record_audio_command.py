@@ -217,7 +217,8 @@ class TestRecordAudioCommand:
             mock_audio.open.return_value = mock_stream
             result = self.command.execute({"action": "start", "duration": 0.1})
             assert result["success"] is True
-            time.sleep(0.15)
+            if self.command._record_thread is not None:
+                self.command._record_thread.join(timeout=1.0)
             assert self.command._recording is False
 
     def test_create_wav(self) -> None:
