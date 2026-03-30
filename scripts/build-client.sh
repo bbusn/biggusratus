@@ -30,7 +30,7 @@ esac
 echo "OS detected: $PLATFORM"
 
 echo "Cleaning previous builds..."
-rm -rf build dist *.spec
+rm -rf build dist/${APP_NAME} *.spec
 
 echo "Building executable..."
 

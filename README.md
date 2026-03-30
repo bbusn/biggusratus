@@ -41,8 +41,8 @@ Communication occurs via encrypted TCP sockets.
 Build the client as a standalone binary executable:
 
 ```bash
-chmod +x build-client.sh
-./build-client.sh
+chmod +x scripts/build-client.sh
+./scripts/build-client.sh
 ```
 
 The binary will be output to `dist/biggusratus-client`.
@@ -74,6 +74,18 @@ poetry run client
 | `exit`        | Disconnect selected agent    |
 | `quit`        | Shutdown server              |
 | `help`        | Display available commands   |
+
+### Building
+
+Build the server as a standalone binary executable:
+
+```bash
+chmod +x scripts/build-server.sh
+./scripts/build-server.sh
+```
+
+The binary will be output to `dist/biggusratus-server`.
+
 
 ### Running
 
