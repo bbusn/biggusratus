@@ -128,11 +128,12 @@ pyinstaller_args = [
     "--hidden-import=logging.handlers",
     "--hidden-import=logging.config",
     "--strip",
-    "--noupx"
+    "--noupx",
 ]
 
 if PLATFORM == "windows" and os.path.exists(version_file):
     pyinstaller_args.append(f"--version-file={version_file}")
+    pyinstaller_args.append("--collect-all", "netifaces")
 
 # Run via Poetry
 cmd = ["poetry", "run", "pyinstaller"] + pyinstaller_args
