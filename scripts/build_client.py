@@ -137,7 +137,7 @@ if PLATFORM == "windows" and os.path.exists(version_file):
     pyinstaller_args.append("netifaces")
 
 # Run via Poetry
-cmd = ["poetry", "run", "pyinstaller"] + pyinstaller_args
+cmd = ["poetry", "run", "pyinstaller", "--additional-hooks-dir=hooks"] + pyinstaller_args
 result = subprocess.run(cmd)
 if result.returncode != 0:
     print("❌ Build failed")
