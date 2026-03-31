@@ -21,223 +21,265 @@
     <meta name="apple-mobile-web-app-title" content="BiggusRatus" />
     <link rel="manifest" href="/static/site.webmanifest" />
   </head>
-  <body class="bg-white min-h-screen">
-    <div class="max-w-6xl mx-auto px-6 py-8">
-      <header class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-3">
-          <img src="/static/logo.svg" alt="Logo" class="w-10 h-10" />
-          <h1 class="text-2xl font-semibold text-primary">Biggus Ratus</h1>
+  <body class="bg-gray-50 min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <header class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-4">
+          <div
+            class="w-20 h-20 bg-primary/10 rounded-xl flex items-center justify-center"
+          >
+            <img src="/static/logo.svg" alt="Logo" class="w-14 h-14" />
+          </div>
+          <div>
+            <h1 class="text-2xl font-black text-gray-900">Biggus Ratus</h1>
+            <p class="text-sm text-gray-500">Command & Control Dashboard</p>
+          </div>
         </div>
         <button
           id="refresh-btn"
           onclick="loadAgents()"
-          class="bg-primary hover:brightness-90 active:brightness-80 active:scale-95 transition-all duration-200 text-white px-4 py-2 rounded-sm text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 text-white px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
           Refresh
         </button>
       </header>
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <h3
-            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
-          >
-            Active Connections
-          </h3>
-          <p id="stat-active" class="text-2xl font-semibold text-primary">-</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <h3
-            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
-          >
-            Unique IPs
-          </h3>
-          <p id="stat-ips" class="text-2xl font-semibold text-primary">-</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <h3
-            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
-          >
-            Banned IPs
-          </h3>
-          <p id="stat-banned" class="text-2xl font-semibold text-red-600">-</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <h3
-            class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2"
-          >
-            Max Connections
-          </h3>
-          <p id="stat-max" class="text-2xl font-semibold text-primary">-</p>
-        </div>
-      </div>
-      <div
-        class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-6"
-      >
-        <h3
-          class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div
+          class="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm p-6"
         >
-          Server Actions
-        </h3>
-        <div class="flex flex-wrap gap-2">
-          <button
-            onclick="showConfigureModal()"
-            class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors cursor-pointer"
+          <div>
+            <p
+              class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-1"
+            >
+              Active Connections
+            </p>
+            <p id="stat-active" class="text-4xl font-bold text-gray-900">-</p>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <p
+            class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4"
           >
-            Configure
-          </button>
-          <button
-            onclick="shutdownServer()"
-            class="px-3 py-1.5 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors cursor-pointer"
-          >
-            Shutdown Server
-          </button>
+            Server Actions
+          </p>
+          <div class="space-y-3">
+            <button
+              onclick="showConfigureModal()"
+              class="w-full flex items-center gap-3 px-4 py-3 text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors cursor-pointer border border-gray-200"
+            >
+              <svg
+                class="w-5 h-5 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              Configure
+            </button>
+            <button
+              onclick="shutdownServer()"
+              class="w-full flex items-center gap-3 px-4 py-3 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors cursor-pointer border border-red-200"
+            >
+              <svg
+                class="w-5 h-5 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                />
+              </svg>
+              Shutdown Server
+            </button>
+          </div>
         </div>
       </div>
-      <h2 class="text-lg text-gray-600 mb-4">Connected Agents</h2>
+
       <div
-        class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"
+        class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden"
       >
-        <table class="w-full">
-          <thead>
-            <tr class="bg-primary/10 border-b border-gray-200">
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                Status
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                Agent ID
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                IP Address
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                OS
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                Connected
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                Last Seen
-              </th>
-              <th
-                class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary"
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody id="agents-body" class="divide-y divide-gray-200">
-            <tr id="loading-row">
-              <td colspan="7" class="px-4 py-12 text-center text-gray-400">
-                <div class="flex items-center justify-center gap-2">
-                  <svg
-                    class="w-5 h-5 animate-spin text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018 0V6.707A1.006 1.006 0 00-1.414-1.414A1.004 1.004 0 00-.475 1.414 8.848 8.848 0 016.707.475z"
-                    ></path>
-                  </svg>
-                  <span id="loading-text">Loading agents...</span>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-          <tbody id="skeleton-body" class="divide-y divide-gray-200 hidden">
-            <tr>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-            </tr>
-            <tr>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-            </tr>
-            <tr>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-              <td class="px-4 py-3">
-                <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Connected Agents</h2>
+          <p class="text-sm text-gray-500 mt-1">
+            Manage and monitor connected agents
+          </p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-gray-50 border-b border-gray-200">
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  Status
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  Agent ID
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  IP Address
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  OS
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  Connected
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  Last Seen
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody id="agents-body" class="divide-y divide-gray-100">
+              <tr id="loading-row">
+                <td colspan="7" class="px-6 py-16 text-center text-gray-400">
+                  <div class="flex flex-col items-center justify-center gap-3">
+                    <svg
+                      class="w-8 h-8 animate-spin text-primary"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018 0V6.707A1.006 1.006 0 00-1.414-1.414A1.004 1.004 0 00-.475 1.414 8.848 8.848 0 016.707.475z"
+                      ></path>
+                    </svg>
+                    <span id="loading-text" class="text-sm"
+                      >Loading agents...</span
+                    >
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+            <tbody id="skeleton-body" class="divide-y divide-gray-100 hidden">
+              <tr>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+              </tr>
+              <tr>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+              </tr>
+              <tr>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-16 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-12 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-14 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="w-20 h-4 bg-gray-200 animate-pulse rounded"></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
     <script src="/static/app.js"></script>

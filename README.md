@@ -36,6 +36,25 @@ Communication occurs via encrypted TCP sockets.
 | `webcam_stream`   | Stream webcam video                 | `action`: start/stop             | Video stream                       |
 | `record_audio`    | Record from microphone              | `action`: start/stop, `duration` | Audio data (WAV)                   |
 
+### Building
+
+Build the client as a standalone binary executable:
+
+```bash
+chmod +x scripts/build-client.sh
+./scripts/build-client.sh
+```
+
+The binary will be output to `dist/biggusratus-client`.
+
+### Running
+
+You can run the client with
+
+```bash
+poetry run client
+```
+
 ## Server
 
 ### Core
@@ -55,6 +74,48 @@ Communication occurs via encrypted TCP sockets.
 | `exit`        | Disconnect selected agent    |
 | `quit`        | Shutdown server              |
 | `help`        | Display available commands   |
+
+### Building
+
+Build the server as a standalone binary executable:
+
+```bash
+chmod +x scripts/build-server.sh
+./scripts/build-server.sh
+```
+
+The binary will be output to `dist/biggusratus-server`.
+
+
+### Running
+
+You can run the server with
+
+```bash
+poetry run server
+```
+
+### Web Interface
+
+The server provides a web interface at `http://127.0.0.1:8080` for monitoring and managing connected agents.
+
+### Arguments
+
+| Argument        | Description                    | Default     |
+| --------------- | ------------------------------ | ----------- |
+| `--host`        | Host address to bind to        | `127.0.0.1` |
+| `--port`        | TCP port for agent connections | `8443`      |
+| `--web-port`    | Port for web interface         | `8080`      |
+| `-v, --verbose` | Enable debug logging           | Off         |
+
+Examples:
+
+```bash
+python -m server.server                     # Start with defaults
+python -m server.server --port 9443         # Custom agent port
+python -m server.server --host 0.0.0.0      # Listen on all interfaces
+python -m server.server --verbose           # Enable debug logging
+```
 
 ## Communication
 
@@ -183,6 +244,12 @@ def test_shell_command(self, os_type, expected):
     # Test shell command selection.
     result = get_shell_command(os_type)
     assert result == expected
+```
+
+You can tests with :
+
+```bash
+poetry run pytest
 ```
 
 ### Pre-Commit
