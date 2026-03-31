@@ -41,7 +41,6 @@ for folder in ["build", "dist"]:
     if os.path.exists(folder):
         shutil.rmtree(folder)
 
-# Remove .spec files
 for file in Path(".").glob("*.spec"):
     file.unlink()
 
@@ -57,42 +56,45 @@ def version_to_tuple(version: str):
         parts.append(0)
     return tuple(parts)
 
+def write_version_file(filename, company, display_name, version, copyright):
+    vt = version_to_tuple(version)
+    content = f"""VSVersionInfo(
+ffi=FixedFileInfo(
+filevers={vt},
+prodvers={vt},
+mask=0x3f,
+flags=0x0,
+OS=0x40004,
+fileType=0x1,
+subtype=0x0,
+date=(0, 0)
+),
+kids=[
+StringFileInfo([
+StringTable(
+u'040904B0',
+[
+StringStruct(u'CompanyName', u'{company}'),
+StringStruct(u'FileDescription', u'{display_name}'),
+StringStruct(u'FileVersion', u'{version}'),
+StringStruct(u'InternalName', u'sysmon'),
+StringStruct(u'LegalCopyright', u'{copyright}'),
+StringStruct(u'OriginalFilename', u'sysmon.exe'),
+StringStruct(u'ProductName', u'{display_name}'),
+StringStruct(u'ProductVersion', u'{version}')
+]
+)
+]),
+VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+]
+)
+"""
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+
 if PLATFORM == "windows":
     print("Creating version info file for Windows...")
-    version_tuple = version_to_tuple(VERSION)
-
-    with open(version_file, "w", encoding="utf-8") as f:
-        f.write(f"""VSVersionInfo(
-            ffi=FixedFileInfo(
-                filevers={version_tuple},
-                prodvers={version_tuple},
-                mask=0x3f,
-                flags=0x0,
-                OS=0x40004,
-                fileType=0x1,
-                subtype=0x0,
-                date=(0, 0)
-            ),
-            kids=[
-                StringFileInfo([
-                StringTable(
-                    u'040904B0',
-                    [
-                    StringStruct(u'CompanyName', u'{COMPANY}'),
-                    StringStruct(u'FileDescription', u'{DISPLAY_NAME}'),
-                    StringStruct(u'FileVersion', u'{VERSION}'),
-                    StringStruct(u'InternalName', u'sysmon'),
-                    StringStruct(u'LegalCopyright', u'{COPYRIGHT}'),
-                    StringStruct(u'OriginalFilename', u'sysmon.exe'),
-                    StringStruct(u'ProductName', u'{DISPLAY_NAME}'),
-                    StringStruct(u'ProductVersion', u'{VERSION}')
-                    ]
-                )
-                ]),
-                VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
-            ]
-            )
-            """)
+    write_version_file(version_file, COMPANY, DISPLAY_NAME, VERSION, COPYRIGHT)
 
 # -----------------------------
 # Build with PyInstaller
@@ -134,7 +136,6 @@ if PLATFORM == "windows" and os.path.exists(version_file):
 
 # Run via Poetry
 cmd = ["poetry", "run", "pyinstaller"] + pyinstaller_args
-
 result = subprocess.run(cmd)
 if result.returncode != 0:
     print("❌ Build failed")
