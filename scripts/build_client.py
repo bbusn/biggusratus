@@ -50,38 +50,47 @@ for file in Path(".").glob("*.spec"):
 # -----------------------------
 version_file = "version_info.txt"
 
+def version_to_tuple(version: str):
+    parts = version.split(".")
+    parts = [int(p) for p in parts]
+    while len(parts) < 4:
+        parts.append(0)
+    return tuple(parts)
+
 if PLATFORM == "windows":
     print("Creating version info file for Windows...")
+    version_tuple = version_to_tuple(VERSION)
+
     with open(version_file, "w", encoding="utf-8") as f:
         f.write(f"""VSVersionInfo(
-  ffi=FixedFileInfo(
-    filevers=({VERSION}),
-    prodvers=({VERSION}),
-    mask=0x3f,
-    flags=0x0,
-    OS=0x40004,
-    fileType=0x1,
-    subtype=0x0,
-    date=(0, 0)
-  ),
-  kids=[
-    StringFileInfo(
-      [
-      StringTable(
-        u'040904B0',
-        [StringStruct(u'CompanyName', u'{COMPANY}'),
-        StringStruct(u'FileDescription', u'{DISPLAY_NAME}'),
-        StringStruct(u'FileVersion', u'{VERSION}'),
-        StringStruct(u'InternalName', u'sysmon'),
-        StringStruct(u'LegalCopyright', u'{COPYRIGHT}'),
-        StringStruct(u'OriginalFilename', u'sysmon.exe'),
-        StringStruct(u'ProductName', u'{DISPLAY_NAME}'),
-        StringStruct(u'ProductVersion', u'{VERSION}')])
-      ]),
-    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
-  ]
-)
-""")
+    ffi=FixedFileInfo(
+        filevers={version_tuple},
+        prodvers={version_tuple},
+        mask=0x3f,
+        flags=0x0,
+        OS=0x40004,
+        fileType=0x1,
+        subtype=0x0,
+        date=(0, 0)
+    ),
+    kids=[
+        StringFileInfo(
+        [
+        StringTable(
+            u'040904B0',
+            [StringStruct(u'CompanyName', u'{COMPANY}'),
+            StringStruct(u'FileDescription', u'{DISPLAY_NAME}'),
+            StringStruct(u'FileVersion', u'{VERSION}'),
+            StringStruct(u'InternalName', u'sysmon'),
+            StringStruct(u'LegalCopyright', u'{COPYRIGHT}'),
+            StringStruct(u'OriginalFilename', u'sysmon.exe'),
+            StringStruct(u'ProductName', u'{DISPLAY_NAME}'),
+            StringStruct(u'ProductVersion', u'{VERSION}')])
+        ]),
+        VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+    ]
+    )
+    """)
 
 # -----------------------------
 # Build with PyInstaller
