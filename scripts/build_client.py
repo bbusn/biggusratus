@@ -133,7 +133,8 @@ pyinstaller_args = [
 
 if PLATFORM == "windows" and os.path.exists(version_file):
     pyinstaller_args.append(f"--version-file={version_file}")
-    pyinstaller_args.append("--collect-all", "netifaces")
+    pyinstaller_args.append("--collect-all")
+    pyinstaller_args.append("netifaces")
 
 # Run via Poetry
 cmd = ["poetry", "run", "pyinstaller"] + pyinstaller_args
