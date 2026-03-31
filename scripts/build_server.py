@@ -29,13 +29,16 @@ else:
 print(f"OS detected: {PLATFORM}")
 
 # -----------------------------
-# Clean previous builds
+# Clean previous binary
 # -----------------------------
-print("Cleaning previous builds...")
+print("Cleaning previous binary...")
 
-for folder in ["build", "dist"]:
-    if os.path.exists(folder):
-        shutil.rmtree(folder)
+binary_path = Path("dist") / (APP_NAME + EXT)
+if binary_path.exists():
+    print(f"Deleting existing binary: {binary_path}")
+    binary_path.unlink()
+else:
+    print("No previous binary found, skipping.")
 
 # Remove .spec files
 for file in Path(".").glob("*.spec"):
